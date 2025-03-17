@@ -9,4 +9,4 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Install Playwright with Chromium only to save space
-npx playwright install --with-deps chromium
+python -m playwright install --with-deps chromium
