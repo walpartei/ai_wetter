@@ -46,7 +46,9 @@ class LogManager:
             def emit(self, record):
                 # Only capture logs from browser-use or Meteologix
                 log_message = self.format(record)
-                if '[agent]' in log_message or 'browser-use' in log_message or 'Meteologix' in log_message:
+                # Filter for relevant logs to make the UI display more useful
+                if any(term in log_message for term in ['[agent]', 'browser-use', 'Meteologix', 'browser automation', 
+                                                      'structured output', 'GPT-4o', 'parsing structured data']):
                     self.log_queue.put({
                         'timestamp': int(time.time() * 1000),
                         'level': record.levelname,

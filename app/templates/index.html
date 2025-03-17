@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const allDone = Object.values(sourceStatus).every(s => s === 'success' || s === 'error');
                 if (allDone) {
                     document.getElementById('loading-progress').innerHTML = 
-                        '<small class="text-success">All data sources processed. Redirecting...</small>';
+                        '<small class="text-success">Forecast data ready!</small>';
                     
                     // Redirect after a brief delay
                     setTimeout(function() {
@@ -59,6 +59,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (hasMeteologix) {
                 const logContainer = document.querySelector('#meteologix-logs .log-container');
+                // Add initial log to show we're starting
+                const initialLog = document.createElement('div');
+                initialLog.className = 'log-entry';
+                const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                initialLog.innerHTML = `<span class="time">${currentTime}</span> <span class="text-primary">Starting Meteologix browser automation...</span>`;
+                logContainer.appendChild(initialLog);
+                
                 let lastLogId = 0;
                 
                 // Function to format timestamp
@@ -137,20 +144,29 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.error('Error checking source status:', error);
                         updateSourceStatus(source, 'error');
                         
-                        // Stop log polling and show warning for Meteologix
+                        // Stop log polling for Meteologix
                         if (source === 'Meteologix') {
                             if (logPollingInterval) {
                                 clearInterval(logPollingInterval);
                             }
-                            document.getElementById('meteologix-warning').style.display = 'block';
+                            
+                            // Add error log entry
+                            const logContainer = document.querySelector('#meteologix-logs .log-container');
+                            const errorLog = document.createElement('div');
+                            errorLog.className = 'log-entry text-danger';
+                            const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            errorLog.innerHTML = `<span class="time">${currentTime}</span> <strong>ERROR:</strong> Failed to connect to browser automation service`;
+                            logContainer.appendChild(errorLog);
                         }
                     });
             });
             
-            // Fallback: if nothing happens, just redirect (longer timeout if Meteologix is enabled)
+            // Fallback: update message after a while to show we're still working
             setTimeout(function() {
-                document.getElementById('loading-progress').innerHTML = 
-                    '<small class="text-info">Taking longer than expected. Finalizing request...</small>';
+                if (!Object.values(sourceStatus).every(s => s === 'success' || s === 'error')) {
+                    document.getElementById('loading-progress').innerHTML = 
+                        '<small class="text-info">Still processing weather data sources...</small>';
+                }
             }, 10000);
             
             // Extend the timeout for Meteologix since it uses a browser scraper
@@ -240,12 +256,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             {% if source == 'Meteologix' %}
                             <div class="mt-2" id="meteologix-logs">
                                 <div class="log-container" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
-                                    <div class="log-entry text-muted"><span class="time">00:00</span> Initializing browser automation...</div>
+                                    <!-- Log entries will be dynamically populated via API -->
                                 </div>
                             </div>
-                            <small class="text-warning d-block mt-1" id="meteologix-warning" style="display: none;">
-                                <i class="fas fa-exclamation-triangle"></i> Browser automation may not be available on this server
-                            </small>
                             {% endif %}
                         </div>
                         <div class="ms-2 status-icon">
@@ -256,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 
                 <div class="mt-3 text-center" id="loading-progress">
-                    <small class="text-muted">Connecting to APIs...</small>
+                    <small class="text-muted">Retrieving weather data...</small>
                 </div>
             </div>
         </div>

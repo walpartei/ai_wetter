@@ -101,6 +101,7 @@ class MeteologixDataSource(BaseDataSource):
         Returns:
             List of Forecast objects for the requested days
         """
+        logger.info(f"Starting Meteologix forecast fetch for {location.name}")
         if not self.is_available():
             logger.warning("Meteologix data source is not available: enabled=%s, has_api_key=%s", 
                          self.enabled, bool(self.openai_api_key))
@@ -108,18 +109,22 @@ class MeteologixDataSource(BaseDataSource):
         
         # Limit days to 14
         days = min(days, 14)
+        logger.info(f"Fetching {days} days of Meteologix forecast data")
         
         location_id = location.id or str(location.name).lower().replace(" ", "_")
         
         # Get the Meteologix location ID
         meteologix_location_id = METEOLOGIX_LOCATION_MAPPING.get(location_id)
+        if meteologix_location_id:
+            logger.info(f"Using Meteologix location ID: {meteologix_location_id} for {location.name}")
         if not meteologix_location_id:
             logger.warning(f"No Meteologix mapping found for location ID: {location_id}")
             return []
             
         try:
             # Use asyncio to run the browser scraping
-            logger.info(f"Fetching Meteologix forecast for {location.name}")
+            logger.info(f"Starting browser automation for Meteologix forecasts")
+            logger.info(f"Fetching Meteologix forecast data for {location.name}")
             forecast_data = asyncio.run(self._fetch_meteologix_data(meteologix_location_id))
             
             if not forecast_data or "forecast" not in forecast_data:
@@ -187,23 +192,26 @@ Structure the data exactly as shown in the output format."""
             )
 
             # Run the agent and get the result
-            logger.info("Running browser-use agent")
+            logger.info("Running browser-use agent to extract Meteologix forecast data")
             history = await agent.run()
 
             # Log information about the result
-            logger.info(f"Agent run completed with history type: {type(history)}")
+            logger.info(f"Browser automation completed successfully")
 
             # Extract the structured result using the Pydantic model
+            logger.info(f"Extracting structured weather data from browser automation result")
             result = history.final_result()
             if result:
-                logger.info(f"Got structured result from agent: {result[:100]}...")
+                logger.info(f"Got structured result from browser agent")
                 try:
                     # Parse the result as our Pydantic model
+                    logger.info(f"Parsing structured output with Pydantic model")
                     parsed_forecast = MeteologixForecast.model_validate_json(result)
                     forecast_days = len(parsed_forecast.forecast)
-                    logger.info(f"Successfully parsed structured data with {forecast_days} days")
+                    logger.info(f"Successfully parsed structured data with {forecast_days} days of forecast")
 
                     # Convert to dictionary for compatibility with existing code
+                    logger.info(f"Finalizing Meteologix forecast data")
                     return parsed_forecast.model_dump()
                 except Exception as e:
                     logger.error(f"Error parsing structured output: {e}")
