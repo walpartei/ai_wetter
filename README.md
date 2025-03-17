@@ -69,7 +69,7 @@ http://localhost:5000
 
 ### Deployment on Ubuntu Server
 
-#### Option 1: Using Supervisor
+#### Option 1: Using Byobu (Simple and Interactive)
 
 1. Connect to your Ubuntu server:
 ```bash
@@ -79,7 +79,7 @@ ssh username@your_server_ip
 2. Install required system packages:
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv nginx supervisor build-essential
+sudo apt install -y python3 python3-pip python3-venv nginx build-essential byobu
 
 # Install required dependencies for Playwright
 sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
@@ -117,31 +117,7 @@ cp .env.example .env
 nano .env
 ```
 
-8. Create logs directory and Supervisor configuration:
-```bash
-# Create logs directory
-mkdir -p ~/ai_wetter/logs
-
-# Create Supervisor configuration
-sudo nano /etc/supervisor/conf.d/ai_wetter.conf
-```
-
-Add the following content (adjust paths as necessary):
-```
-[program:ai_wetter]
-directory=/home/your_username/ai_wetter
-command=/home/your_username/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
-autostart=true
-autorestart=true
-stderr_logfile=/home/your_username/ai_wetter/logs/gunicorn.err.log
-stdout_logfile=/home/your_username/ai_wetter/logs/gunicorn.out.log
-user=your_username
-environment=PATH="/home/your_username/ai_wetter/venv/bin"
-```
-
-Make sure to replace `your_username` with your actual username (e.g., `jerry`)
-
-9. Set up Nginx as a reverse proxy:
+8. Set up Nginx as a reverse proxy:
 ```bash
 sudo nano /etc/nginx/sites-available/ai_wetter
 ```
@@ -162,23 +138,49 @@ server {
 }
 ```
 
-10. Enable the site and restart Nginx:
+9. Enable the site and restart Nginx:
 ```bash
 sudo ln -s /etc/nginx/sites-available/ai_wetter /etc/nginx/sites-enabled/
 sudo nginx -t  # Test the configuration
 sudo systemctl restart nginx
 ```
 
-11. Start the application with Supervisor:
+10. Start the application with Byobu (keeps running after logout):
 ```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start ai_wetter
+# Start a new byobu session
+byobu
+
+# Inside byobu, start gunicorn
+cd ~/ai_wetter
+source venv/bin/activate
+gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
 ```
 
-12. Your application should now be running at `http://your_domain.com` or `http://your_server_ip`.
+You can detach from the Byobu session by pressing `F6` or `Ctrl+A+D`. To reattach later:
+```bash
+byobu
+```
 
-#### Option 2: Using Systemd (Alternative)
+You can also create a simple start script for easier management:
+```bash
+echo '#!/bin/bash
+cd ~/ai_wetter
+source venv/bin/activate
+gunicorn "app.app:create_app()" --bind=127.0.0.1:8000 --workers=2
+' > ~/ai_wetter/start.sh
+
+chmod +x ~/ai_wetter/start.sh
+```
+
+Then run it in Byobu with:
+```bash
+byobu
+~/ai_wetter/start.sh
+```
+
+11. Your application should now be running at `http://your_domain.com` or `http://your_server_ip`.
+
+#### Option 2: Using Systemd (For Automatic Startup on Boot)
 
 Follow steps 1-7 from Option 1, then:
 
