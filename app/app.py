@@ -16,8 +16,14 @@ logger = get_logger()
 
 def create_app():
     """Create the Flask application for production."""
+    # Create and configure the app
     window = MainWindow()
-    return window.app
+    app = window.app
+    
+    # For production, set the secret key
+    app.secret_key = 'ai_wetter_secret_key'  # For flash messages
+    
+    return app
 
 
 def main():
