@@ -124,28 +124,62 @@ class MeteologixDataSource(BaseDataSource):
         logger.info(f"Starting browser-use agent for Meteologix, location ID: {meteologix_location_id}")
         
         # Try to install browser if it's not already installed
+        # But with a short timeout to prevent worker hanging
         try:
             import subprocess
-            logger.info("Checking if Playwright browser needs to be installed")
-            subprocess.run(["python", "-m", "playwright", "install", "chromium"], 
-                          check=False, capture_output=True)
+            import threading
+            
+            def install_browser():
+                try:
+                    logger.info("Attempting to install Playwright browser (with timeout)")
+                    result = subprocess.run(
+                        ["python", "-m", "playwright", "install", "chromium"],
+                        check=False, capture_output=True, timeout=5
+                    )
+                    logger.info(f"Browser installation finished with code: {result.returncode}")
+                except subprocess.TimeoutExpired:
+                    logger.warning("Browser installation timed out")
+                except Exception as e:
+                    logger.warning(f"Failed to install Playwright browser: {e}")
+                    
+            # Start installation in a separate thread with a timeout
+            logger.info("Starting browser installation in background thread")
+            install_thread = threading.Thread(target=install_browser)
+            install_thread.daemon = True
+            install_thread.start()
+            
+            # Wait for up to 5 seconds
+            install_thread.join(5.0)
+            
+            if install_thread.is_alive():
+                logger.warning("Browser installation is taking too long, continuing without waiting")
+                
         except Exception as e:
-            logger.warning(f"Failed to install Playwright browser: {e}")
+            logger.warning(f"Failed to start browser installation: {e}")
         
-        # Configure the browser to run headless
-        browser = Browser(
-            config=BrowserConfig(
-                headless=True,
+        # Define a timeout for the entire browser operation (20 seconds)
+        browser_timeout = 20  # seconds
+        
+        # Try to initialize the browser with a short timeout
+        try:
+            import asyncio
+            import concurrent.futures
+            from concurrent.futures import TimeoutError
+            
+            # Configure the browser to run headless
+            browser = Browser(
+                config=BrowserConfig(
+                    headless=True,
+                )
             )
-        )
-        
-        # Define the initial actions (navigating to the 14-day forecast page)
-        initial_actions = [
-            {'open_tab': {'url': f'https://meteologix.com/bg/forecast/{meteologix_location_id}/14-day-trend'}}
-        ]
-        
-        # Create the task for extracting weather data
-        task = """On the current site, please check the weather forecast for the next 14 days, and create a JSON summary including temperature, precipitation, and wind. Please ONLY output json in the following format:
+            
+            # Define the initial actions (navigating to the 14-day forecast page)
+            initial_actions = [
+                {'open_tab': {'url': f'https://meteologix.com/bg/forecast/{meteologix_location_id}/14-day-trend'}}
+            ]
+            
+            # Create the task for extracting weather data
+            task = """On the current site, please check the weather forecast for the next 14 days, and create a JSON summary including temperature, precipitation, and wind. Please ONLY output json in the following format:
 
 {
   "forecast": [
@@ -165,38 +199,55 @@ class MeteologixDataSource(BaseDataSource):
   ]
 }
 """
-        
-        # Create the browser-use agent
-        try:
-            logger.info("Creating browser-use agent")
-            agent = Agent(
-                task=task,
-                llm=ChatOpenAI(model="gpt-4o", api_key=self.openai_api_key),
-                initial_actions=initial_actions,
-                browser=browser,
-            )
             
-            # Run the agent and get the result
-            logger.info("Running browser-use agent")
-            await agent.run()
+            # Create a future to run the agent with a timeout
+            async def run_agent_with_timeout():
+                try:
+                    # Create the browser-use agent
+                    logger.info("Creating browser-use agent")
+                    agent = Agent(
+                        task=task,
+                        llm=ChatOpenAI(model="gpt-4o", api_key=self.openai_api_key),
+                        initial_actions=initial_actions,
+                        browser=browser,
+                    )
+                    
+                    # Run the agent with a timeout
+                    logger.info("Running browser-use agent with timeout")
+                    await asyncio.wait_for(agent.run(), timeout=browser_timeout)
+                    
+                    # Parse the agent's response to extract JSON
+                    response = agent.messages[-1].content
+                    logger.info(f"Agent response received, length: {len(response)} chars")
+                    
+                    # Try to extract JSON from the response
+                    import re
+                    json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+                    
+                    if json_match:
+                        json_str = json_match.group(1)
+                    else:
+                        # If no JSON code block is found, try the entire response
+                        json_str = response
+                        
+                    # Parse the JSON
+                    data = json.loads(json_str)
+                    return data
+                except asyncio.TimeoutError:
+                    logger.error(f"Browser-use operation timed out after {browser_timeout} seconds")
+                    raise
+                except Exception as e:
+                    logger.error(f"Error in browser automation: {e}")
+                    raise
+                finally:
+                    try:
+                        await browser.close()
+                    except:
+                        pass
             
-            # Parse the agent's response to extract JSON
-            response = agent.messages[-1].content
-            logger.info(f"Agent response: {response[:100]}...")
-            
-            # Try to extract JSON from the response
-            import re
-            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-            
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # If no JSON code block is found, try the entire response
-                json_str = response
-                
-            # Parse the JSON
-            data = json.loads(json_str)
-            await browser.close()
+            # Execute with timeout
+            logger.info("Starting browser operations with timeout protection")
+            data = await asyncio.wait_for(run_agent_with_timeout(), timeout=browser_timeout)
             return data
             
         except Exception as e:
