@@ -180,24 +180,54 @@ class MeteologixDataSource(BaseDataSource):
             logger.info("Running browser-use agent")
             result = await agent.run()
             
-            # Parse the agent's response to extract JSON
-            response = result.text if hasattr(result, 'text') else str(result)
-            logger.info(f"Agent response: {response[:100]}...")
+            # Detailed logging of the result structure to debug
+            logger.info(f"Agent result type: {type(result)}")
+            logger.info(f"Agent result attributes: {dir(result)}")
             
-            # Try to extract JSON from the response
-            import re
-            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            # Log the content of all_results if it exists
+            if hasattr(result, 'all_results'):
+                logger.info(f"Result has {len(result.all_results)} action results")
+                for i, action_result in enumerate(result.all_results):
+                    logger.info(f"Action result {i} type: {type(action_result)}")
+                    logger.info(f"Action result {i} attributes: {dir(action_result)}")
+                    logger.info(f"Action result {i} repr: {repr(action_result)}")
             
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # If no JSON code block is found, try the entire response
-                json_str = response
-                
-            # Parse the JSON
-            data = json.loads(json_str)
+            # Attempt to extract the final result from the agent history
+            if hasattr(result, 'all_results') and result.all_results:
+                # Look for the 'done' action with JSON data
+                for action_result in reversed(result.all_results):
+                    if hasattr(action_result, 'is_done') and action_result.is_done:
+                        if hasattr(action_result, 'text'):
+                            json_str = action_result.text
+                            logger.info(f"Found done action with text: {json_str[:100]}...")
+                            try:
+                                # Parse the JSON
+                                data = json.loads(json_str)
+                                return data
+                            except Exception as json_error:
+                                logger.error(f"Error parsing JSON from done action: {json_error}")
+            
+            # Fallback approach: look for JSON in any extracted content
+            json_data = None
+            for action_result in reversed(result.all_results):
+                if hasattr(action_result, 'extracted_content'):
+                    content = action_result.extracted_content
+                    if isinstance(content, str) and content.strip().startswith('```json'):
+                        try:
+                            # Extract JSON from markdown code block
+                            import re
+                            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+                            if json_match:
+                                json_str = json_match.group(1)
+                                data = json.loads(json_str)
+                                return data
+                        except Exception as e:
+                            logger.warning(f"Could not extract JSON from content: {e}")
+            
+            # If we couldn't extract JSON data by this point, log error and return empty dict
+            logger.error("Could not extract valid forecast data from browser-use agent results")
             await browser.close()
-            return data
+            return {}
             
         except Exception as e:
             logger.error(f"Error in browser-use agent: {e}")
