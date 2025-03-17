@@ -35,7 +35,7 @@ def create_app():
 def main():
     """Main entry point for the application."""
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="AI Wetter - Bulgarian Weather Forecast Tool")
+    parser = argparse.ArgumentParser(description="Philipp's AI Wetter - Bulgarian Weather Forecast")
     parser.add_argument('--host', default='127.0.0.1', help='Host to run the server on')
     parser.add_argument('--port', type=int, default=5000, help='Port to run the server on')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
