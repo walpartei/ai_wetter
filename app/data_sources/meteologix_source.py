@@ -65,7 +65,15 @@ class MeteologixDataSource(BaseDataSource):
     def is_available(self) -> bool:
         """Check if Meteologix data source is properly configured and available."""
         # Check if the source is enabled in config and OpenAI API key is set
-        return self.enabled and bool(self.openai_api_key)
+        has_config = self.enabled and bool(self.openai_api_key)
+        
+        # Try to check if Playwright is properly installed
+        try:
+            import playwright
+            return has_config
+        except Exception as e:
+            logger.warning(f"Playwright not properly installed: {e}")
+            return False
     
     def get_forecast(self, location: Location, days: int = 14) -> List[Forecast]:
         """Get weather forecast for a location using Meteologix data.
@@ -114,6 +122,15 @@ class MeteologixDataSource(BaseDataSource):
     async def _fetch_meteologix_data(self, meteologix_location_id: str) -> Dict[str, Any]:
         """Fetch weather data from Meteologix using browser-use."""
         logger.info(f"Starting browser-use agent for Meteologix, location ID: {meteologix_location_id}")
+        
+        # Try to install browser if it's not already installed
+        try:
+            import subprocess
+            logger.info("Checking if Playwright browser needs to be installed")
+            subprocess.run(["python", "-m", "playwright", "install", "chromium"], 
+                          check=False, capture_output=True)
+        except Exception as e:
+            logger.warning(f"Failed to install Playwright browser: {e}")
         
         # Configure the browser to run headless
         browser = Browser(

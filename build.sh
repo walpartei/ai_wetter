@@ -8,5 +8,6 @@ set -e
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Install Playwright with Chromium only to save space
-python -m playwright install --with-deps chromium
+# Skip Playwright browser installation in build phase
+# We'll modify the app to handle missing browser more gracefully
+echo "Skipping Playwright browser installation (will be handled in the application)"
