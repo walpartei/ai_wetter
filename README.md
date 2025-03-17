@@ -41,37 +41,158 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Run the tests to verify functionality:
+4. Install Playwright browsers:
+```bash
+python -m playwright install chromium
+```
+
+5. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit the .env file with your configuration
+```
+
+6. Run the tests to verify functionality:
 ```bash
 python -m unittest discover tests
 ```
 
-5. Run the application:
+7. Run the application:
 ```bash
 python -m app.app --debug
 ```
 
-6. Open your web browser and navigate to:
+8. Open your web browser and navigate to:
 ```
 http://localhost:5000
 ```
 
-### Deployment on Render.com
+### Deployment on Ubuntu Server
 
-1. Fork/push this repository to your GitHub account.
+#### Option 1: Using Supervisor
 
-2. Sign up for a [Render account](https://render.com/).
+1. Connect to your Ubuntu server:
+```bash
+ssh username@your_server_ip
+```
 
-3. Create a new Web Service on Render:
-   - Connect your GitHub repository
-   - Select "Python" as the environment
-   - Use `./build.sh` as the build command
-   - Use `gunicorn 'app.app:create_app()' --bind=0.0.0.0:$PORT --workers=2` as the start command
-   - Add any necessary environment variables
+2. Install required system packages:
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv nginx supervisor build-essential
+```
 
-4. Deploy:
-   - Render will automatically build and deploy your application
-   - Access your app at the URL provided by Render
+3. Clone the repository:
+```bash
+git clone https://github.com/yourusername/ai_wetter.git
+cd ai_wetter
+```
+
+4. Create and activate a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+5. Install dependencies:
+```bash
+pip install -r requirements.txt
+pip install gunicorn
+```
+
+6. Install Playwright browsers:
+```bash
+python -m playwright install chromium
+```
+
+7. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit the .env file with your configuration
+nano .env
+```
+
+8. Create Supervisor configuration:
+```bash
+sudo nano /etc/supervisor/conf.d/ai_wetter.conf
+```
+
+Add the following content (adjust paths as necessary):
+```
+[program:ai_wetter]
+directory=/path/to/ai_wetter
+command=/path/to/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
+autostart=true
+autorestart=true
+stderr_logfile=/path/to/ai_wetter/logs/gunicorn.err.log
+stdout_logfile=/path/to/ai_wetter/logs/gunicorn.out.log
+user=your_username
+environment=PATH="/path/to/ai_wetter/venv/bin"
+```
+
+9. Set up Nginx as a reverse proxy:
+```bash
+sudo nano /etc/nginx/sites-available/ai_wetter
+```
+
+Add the following configuration:
+```
+server {
+    listen 80;
+    server_name your_domain.com;  # Or your server IP
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+10. Enable the site and restart Nginx:
+```bash
+sudo ln -s /etc/nginx/sites-available/ai_wetter /etc/nginx/sites-enabled/
+sudo nginx -t  # Test the configuration
+sudo systemctl restart nginx
+```
+
+11. Start the application with Supervisor:
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start ai_wetter
+```
+
+12. Your application should now be running at `http://your_domain.com` or `http://your_server_ip`.
+
+#### Option 2: Using Systemd (Alternative)
+
+Follow steps 1-7 from Option 1, then:
+
+8. Create a systemd service file:
+```bash
+sudo cp systemd/ai_wetter.service.example /etc/systemd/system/ai_wetter.service
+sudo nano /etc/systemd/system/ai_wetter.service
+```
+Edit the file to match your paths and username.
+
+9. Set up Nginx as described in Option 1 (steps 9-10).
+
+10. Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable ai_wetter
+sudo systemctl start ai_wetter
+```
+
+11. Check the service status:
+```bash
+sudo systemctl status ai_wetter
+```
+
+12. Your application should now be running at `http://your_domain.com` or `http://your_server_ip`.
 
 ## Usage
 

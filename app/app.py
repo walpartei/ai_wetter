@@ -16,12 +16,16 @@ logger = get_logger()
 
 def create_app():
     """Create the Flask application for production."""
+    # Load environment variables from .env file if available
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     # Create and configure the app
     window = MainWindow()
     app = window.app
     
     # Get secret key from environment variable or use default
-    secret_key = os.environ.get('AI_WETTER_SECRET_KEY', 'ai_wetter_secret_key')
+    secret_key = os.environ.get('FLASK_SECRET_KEY', 'ai_wetter_secret_key')
     app.secret_key = secret_key
     
     # Configure session

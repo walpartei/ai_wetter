@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Wetter - Bulgarian Weather Forecast Tool
+After=network.target
+
+[Service]
+User=your_username
+Group=your_group
+WorkingDirectory=/path/to/ai_wetter
+Environment="PATH=/path/to/ai_wetter/venv/bin"
+ExecStart=/path/to/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
