@@ -67,10 +67,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
             });
             
-            // Fallback: if nothing happens for 7 seconds, just redirect
+            // Look for Meteologix in available sources
+            const hasMeteologix = availableSources.includes('Meteologix');
+            
+            // Fallback: if nothing happens, just redirect (longer timeout if Meteologix is enabled)
+            setTimeout(function() {
+                document.getElementById('loading-progress').innerHTML = 
+                    '<small class="text-info">Taking longer than expected. Finalizing request...</small>';
+            }, 10000);
+            
+            // Extend the timeout for Meteologix since it uses a browser scraper
+            const timeoutDuration = hasMeteologix ? 70000 : 10000; // 70 seconds if Meteologix is enabled
+            
             setTimeout(function() {
                 window.location.href = `/forecast?location=${location}&days=${days}`;
-            }, 7000);
+            }, timeoutDuration);
         });
     }
 });
@@ -149,6 +160,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="progress">
                                 <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 100%"></div>
                             </div>
+                            {% if source == 'Meteologix' %}
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle"></i> Using AI browser automation (may take up to 60 seconds)
+                            </small>
+                            {% endif %}
                         </div>
                         <div class="ms-2 status-icon">
                             <i class="fas fa-circle-notch fa-spin text-info"></i>

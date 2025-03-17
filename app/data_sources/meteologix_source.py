@@ -1,8 +1,15 @@
 import json
-import requests
+import os
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
+# Browser-use imports
+from browser_use import Agent, Browser, BrowserConfig
+from browser_use.browser.context import BrowserContext
+from langchain_openai import ChatOpenAI
+
+# Local imports
 from app.data_sources.base_source import BaseDataSource
 from app.models.location import Location
 from app.models.forecast import Forecast, WeatherMetrics
@@ -11,20 +18,54 @@ from app.utils.logging import get_logger
 
 logger = get_logger()
 
+# Dictionary mapping our location IDs to Meteologix location IDs
+METEOLOGIX_LOCATION_MAPPING = {
+    "balchik": "733515-baltchik",
+    "blagoevgrad": "733191-blagoevgrad",
+    "burgas": "732770-burgas",
+    "devnya": "732280-devnya",
+    "dobrich": "726418-dobrich",
+    "gabrovo": "731549-gabrovo",
+    "general_toshevo": "731464-general-toshevo",
+    "haskovo": "730435-haskovo",
+    "kardzhali": "729794-kardzhali",
+    "kyustendil": "729730-kyustendil",
+    "lovech": "729559-lovech",
+    "montana": "729114-montana",
+    "pazardzhik": "728378-pazardzhik",
+    "pernik": "728330-pernik",
+    "pleven": "728203-pleven",
+    "plovdiv": "728193-plovdiv",
+    "razgrad": "727696-razgrad",
+    "ruse": "727523-rousse",
+    "shumen": "727233-shumen",
+    "silistra": "727221-silistra",
+    "sliven": "727079-sliven",
+    "smolyan": "727030-smolyan",
+    "sofia": "727011-sofia",
+    "stara_zagora": "726848-stara-zagora",
+    "targovishte": "726174-targovishte",
+    "varna": "726050-varna",
+    "veliko_tarnovo": "725993-veliko-tarnovo",
+    "vidin": "725905-vidin",
+    "vratsa": "725712-vratsa",
+    "yambol": "725578-yambol",
+}
+
 
 class MeteologixDataSource(BaseDataSource):
-    """Data source for Meteologix weather forecasts."""
+    """Data source for Meteologix weather forecasts using browser automation."""
     
     def __init__(self):
         super().__init__("Meteologix")
         self.config = Config().get_api_config("meteologix")
         self.enabled = self.config.get("enabled", False)
+        self.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
     
     def is_available(self) -> bool:
-        """Check if Meteologix API is properly configured and available."""
-        # Since this is a placeholder for future implementation,
-        # we'll just check if it's enabled in the config
-        return self.enabled
+        """Check if Meteologix data source is properly configured and available."""
+        # Check if the source is enabled in config and OpenAI API key is set
+        return self.enabled and bool(self.openai_api_key)
     
     def get_forecast(self, location: Location, days: int = 14) -> List[Forecast]:
         """Get weather forecast for a location using Meteologix data.
@@ -37,100 +78,198 @@ class MeteologixDataSource(BaseDataSource):
             List of Forecast objects for the requested days
         """
         if not self.is_available():
-            logger.info("Meteologix data source is not enabled")
+            logger.warning("Meteologix data source is not available: enabled=%s, has_api_key=%s", 
+                         self.enabled, bool(self.openai_api_key))
             return []
         
         # Limit days to 14
         days = min(days, 14)
         
+        location_id = location.id or str(location.name).lower().replace(" ", "_")
+        
+        # Get the Meteologix location ID
+        meteologix_location_id = METEOLOGIX_LOCATION_MAPPING.get(location_id)
+        if not meteologix_location_id:
+            logger.warning(f"No Meteologix mapping found for location ID: {location_id}")
+            return []
+            
         try:
-            # In a real implementation, we would fetch data from Meteologix
-            # However, since this is marked as "skip for now" in the requirements,
-            # we'll just return a simulated forecast for testing purposes
-            forecasts = self._get_simulated_forecast(location, days)
+            # Use asyncio to run the browser scraping
+            logger.info(f"Fetching Meteologix forecast for {location.name}")
+            forecast_data = asyncio.run(self._fetch_meteologix_data(meteologix_location_id))
+            
+            if not forecast_data or "forecast" not in forecast_data:
+                logger.error(f"Invalid or empty response from Meteologix for {location.name}")
+                return []
+                
+            # Convert the scraped data to our forecast model
+            forecasts = self._convert_to_forecasts(forecast_data, location, days)
+            logger.info(f"Successfully parsed {len(forecasts)} days of Meteologix forecast for {location.name}")
             return forecasts
+            
         except Exception as e:
             logger.error(f"Error getting Meteologix forecast: {e}")
             return []
     
-    def _get_simulated_forecast(self, location: Location, days: int) -> List[Forecast]:
-        """Generate simulated forecast data for testing.
+    async def _fetch_meteologix_data(self, meteologix_location_id: str) -> Dict[str, Any]:
+        """Fetch weather data from Meteologix using browser-use."""
+        logger.info(f"Starting browser-use agent for Meteologix, location ID: {meteologix_location_id}")
         
-        In a real implementation, this would be replaced with actual API calls.
-        """
+        # Configure the browser to run headless
+        browser = Browser(
+            config=BrowserConfig(
+                headless=True,
+            )
+        )
+        
+        # Define the initial actions (navigating to the 14-day forecast page)
+        initial_actions = [
+            {'open_tab': {'url': f'https://meteologix.com/bg/forecast/{meteologix_location_id}/14-day-trend'}}
+        ]
+        
+        # Create the task for extracting weather data
+        task = """On the current site, please check the weather forecast for the next 14 days, and create a JSON summary including temperature, precipitation, and wind. Please ONLY output json in the following format:
+
+{
+  "forecast": [
+    {
+      "date": "2025-03-17",
+      "temperature": {
+        "min": "5°C",
+        "max": "14°C"
+      },
+      "precipitation": {
+        "probability": "0%",
+        "total": "0mm"
+      },
+      "wind": "15 kph"
+    },
+    ...
+  ]
+}
+"""
+        
+        # Create the browser-use agent
+        try:
+            logger.info("Creating browser-use agent")
+            agent = Agent(
+                task=task,
+                llm=ChatOpenAI(model="gpt-4o", api_key=self.openai_api_key),
+                initial_actions=initial_actions,
+                browser=browser,
+            )
+            
+            # Run the agent and get the result
+            logger.info("Running browser-use agent")
+            await agent.run()
+            
+            # Parse the agent's response to extract JSON
+            response = agent.messages[-1].content
+            logger.info(f"Agent response: {response[:100]}...")
+            
+            # Try to extract JSON from the response
+            import re
+            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # If no JSON code block is found, try the entire response
+                json_str = response
+                
+            # Parse the JSON
+            data = json.loads(json_str)
+            await browser.close()
+            return data
+            
+        except Exception as e:
+            logger.error(f"Error in browser-use agent: {e}")
+            try:
+                await browser.close()
+            except:
+                pass
+            return {}
+    
+    def _convert_to_forecasts(self, data: Dict[str, Any], location: Location, days: int) -> List[Forecast]:
+        """Convert Meteologix forecast data to our Forecast model."""
         forecasts = []
-        start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Base values for the location (would be determined by actual data)
-        # Different values to simulate another source
-        base_temp_min = 13.5  # Celsius
-        base_temp_max = 24.5  # Celsius
-        base_precipitation = 2.2  # mm
-        base_humidity = 68.0  # %
-        base_wind_speed = 11.0  # km/h
-        base_wind_direction = 190.0  # degrees
-        base_cloud_cover = 35.0  # %
+        # Get the forecast items, limit to the requested number of days
+        forecast_items = data.get("forecast", [])[:days]
         
-        # Generate forecasts for each day
-        for day in range(days):
-            forecast_date = start_date + timedelta(days=day)
-            
-            # Add some randomness to simulate weather changes
-            import random
-            temp_variation = random.uniform(-3.0, 3.0)
-            precip_variation = random.uniform(-1.2, 2.2)
-            humid_variation = random.uniform(-10.0, 10.0)
-            wind_variation = random.uniform(-5.0, 5.0)
-            wind_dir_variation = random.uniform(-45.0, 45.0)
-            cloud_variation = random.uniform(-15.0, 15.0)
-            
-            # Create metrics for this forecast
-            temp_min = max(0, base_temp_min + temp_variation - 4.5)
-            temp_max = max(temp_min + 4.5, base_temp_max + temp_variation)
-            temp_mean = (temp_min + temp_max) / 2
-            
-            metrics = WeatherMetrics(
-                temperature_min=temp_min,
-                temperature_max=temp_max,
-                temperature_mean=temp_mean,
-                precipitation=max(0, base_precipitation + precip_variation),
-                humidity=max(0, min(100, base_humidity + humid_variation)),
-                wind_speed=max(0, base_wind_speed + wind_variation),
-                wind_direction=(base_wind_direction + wind_dir_variation) % 360,
-                cloud_cover=max(0, min(100, base_cloud_cover + cloud_variation)),
-                soil_temperature=temp_mean - 3,  # Simulated soil temperature
-                soil_moisture=max(0, min(100, base_humidity + humid_variation - 12))
-            )
-            
-            # Create the forecast object
-            forecast = Forecast(
-                source=self.name,
-                location_id=location.id or str(location.name).lower().replace(" ", "_"),
-                date=forecast_date,
-                metrics=metrics,
-                raw_data={  # Simulated raw data
-                    "source": "Meteologix",
-                    "date": forecast_date.isoformat(),
-                    "location": {
-                        "name": location.name,
-                        "lat": location.latitude,
-                        "lon": location.longitude
-                    },
-                    "temperature": {
-                        "min": temp_min,
-                        "max": temp_max,
-                        "mean": temp_mean
-                    },
-                    "precipitation": max(0, base_precipitation + precip_variation),
-                    "humidity": max(0, min(100, base_humidity + humid_variation)),
-                    "wind": {
-                        "speed": max(0, base_wind_speed + wind_variation),
-                        "direction": (base_wind_direction + wind_dir_variation) % 360
-                    },
-                    "cloud_cover": max(0, min(100, base_cloud_cover + cloud_variation))
-                }
-            )
-            
-            forecasts.append(forecast)
-        
+        for i, item in enumerate(forecast_items):
+            try:
+                # Parse date
+                date_str = item.get("date")
+                try:
+                    forecast_date = datetime.strptime(date_str, "%Y-%m-%d")
+                except:
+                    # If date parsing fails, use today + days offset
+                    forecast_date = today + timedelta(days=i)
+                
+                # Parse temperature
+                temp_data = item.get("temperature", {})
+                try:
+                    temp_min = float(temp_data.get("min", "0").replace("°C", ""))
+                except:
+                    temp_min = 0.0
+                    
+                try:
+                    temp_max = float(temp_data.get("max", "0").replace("°C", ""))
+                except:
+                    temp_max = 0.0
+                    
+                temp_mean = (temp_min + temp_max) / 2
+                
+                # Parse precipitation
+                precip_data = item.get("precipitation", {})
+                try:
+                    precip_prob = float(precip_data.get("probability", "0%").replace("%", "")) / 100
+                except:
+                    precip_prob = 0.0
+                    
+                try:
+                    precip_total = float(precip_data.get("total", "0mm").replace("mm", ""))
+                except:
+                    precip_total = 0.0
+                
+                # Parse wind
+                wind_str = item.get("wind", "0 kph")
+                try:
+                    wind_speed = float(wind_str.replace("kph", "").strip())
+                except:
+                    wind_speed = 0.0
+                
+                # Create weather metrics
+                metrics = WeatherMetrics(
+                    temperature_min=temp_min,
+                    temperature_max=temp_max,
+                    temperature_mean=temp_mean,
+                    precipitation=precip_total,
+                    precipitation_probability=precip_prob,
+                    humidity=70.0,  # Estimated value, not provided by the API
+                    wind_speed=wind_speed,
+                    wind_direction=0.0,  # Not provided in the example data
+                    cloud_cover=50.0,  # Estimated value, not provided by the API
+                    # Soil data not available from this source
+                    soil_temperature=None,
+                    soil_moisture=None
+                )
+                
+                # Create forecast object
+                forecast = Forecast(
+                    source=self.name,
+                    location_id=location.id or str(location.name).lower().replace(" ", "_"),
+                    date=forecast_date,
+                    metrics=metrics,
+                    raw_data=item  # Store the original data as raw_data
+                )
+                
+                forecasts.append(forecast)
+                
+            except Exception as e:
+                logger.error(f"Error parsing Meteologix forecast item: {e}")
+                continue
+                
         return forecasts

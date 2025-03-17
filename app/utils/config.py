@@ -27,8 +27,7 @@ API_CONFIG = {
         "key": "rv1lLgwaCJGiuKoF"
     },
     "meteologix": {
-        # To be configured later
-        "enabled": False
+        "enabled": True  # Now enabled with browser-use implementation
     }
 }
 
