@@ -87,7 +87,7 @@ class MainWindow:
                 flash('Invalid location selected', 'error')
                 return redirect(url_for('index'))
             
-            # Get combined forecasts
+            # Get combined forecasts with status tracking (will be used in API version)
             combined_forecasts = self.forecast_service.get_combined_forecasts(location, days)
             
             # Generate forecast table HTML
@@ -183,6 +183,39 @@ class MainWindow:
                                    location=location,
                                    report_list=report_list)
         
+        @self.app.route('/api/forecast/status', methods=['GET'])
+        @login_required
+        def get_forecast_status():
+            """API endpoint to check the status of weather APIs."""
+            location_id = request.args.get('location', '')
+            source_name = request.args.get('source', '')
+            
+            location = self.location_selector.get_location_by_id(location_id)
+            if not location:
+                return jsonify({'error': 'Invalid location'}), 400
+                
+            # Check if the requested source is available
+            available_sources = self.forecast_service.get_available_sources()
+            if source_name not in available_sources:
+                return jsonify({'error': 'Invalid source'}), 400
+                
+            # Here in a real app, we would check the actual status of the API
+            # For demo purposes, we'll simulate success with 80% probability
+            import random
+            import time
+            
+            # Add a small delay to simulate network latency (250-750ms)
+            time.sleep(0.25 + random.random() * 0.5)
+            
+            # 80% chance of success
+            success = random.random() < 0.8
+            
+            return jsonify({
+                'source': source_name,
+                'status': 'success' if success else 'error',
+                'message': 'Data retrieved successfully' if success else 'Failed to retrieve data'
+            })
+            
         @self.app.route('/api/history/details', methods=['GET'])
         @login_required
         def get_history_details():
