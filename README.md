@@ -80,6 +80,11 @@ ssh username@your_server_ip
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-pip python3-venv nginx supervisor build-essential
+
+# Install required dependencies for Playwright
+sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+  libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 \
+  libpango-1.0-0 libcairo2 libatspi2.0-0
 ```
 
 3. Clone the repository:
@@ -112,23 +117,29 @@ cp .env.example .env
 nano .env
 ```
 
-8. Create Supervisor configuration:
+8. Create logs directory and Supervisor configuration:
 ```bash
+# Create logs directory
+mkdir -p ~/ai_wetter/logs
+
+# Create Supervisor configuration
 sudo nano /etc/supervisor/conf.d/ai_wetter.conf
 ```
 
 Add the following content (adjust paths as necessary):
 ```
 [program:ai_wetter]
-directory=/path/to/ai_wetter
-command=/path/to/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
+directory=/home/your_username/ai_wetter
+command=/home/your_username/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
 autostart=true
 autorestart=true
-stderr_logfile=/path/to/ai_wetter/logs/gunicorn.err.log
-stdout_logfile=/path/to/ai_wetter/logs/gunicorn.out.log
+stderr_logfile=/home/your_username/ai_wetter/logs/gunicorn.err.log
+stdout_logfile=/home/your_username/ai_wetter/logs/gunicorn.out.log
 user=your_username
-environment=PATH="/path/to/ai_wetter/venv/bin"
+environment=PATH="/home/your_username/ai_wetter/venv/bin"
 ```
+
+Make sure to replace `your_username` with your actual username (e.g., `jerry`)
 
 9. Set up Nginx as a reverse proxy:
 ```bash
