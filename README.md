@@ -153,7 +153,7 @@ byobu
 # Inside byobu, start gunicorn
 cd ~/ai_wetter
 source venv/bin/activate
-gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
+gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2 --timeout=120
 ```
 
 You can detach from the Byobu session by pressing `F6` or `Ctrl+A+D`. To reattach later:
@@ -166,7 +166,7 @@ You can also create a simple start script for easier management:
 echo '#!/bin/bash
 cd ~/ai_wetter
 source venv/bin/activate
-gunicorn "app.app:create_app()" --bind=127.0.0.1:8000 --workers=2
+gunicorn "app.app:create_app()" --bind=127.0.0.1:8000 --workers=2 --timeout=120
 ' > ~/ai_wetter/start.sh
 
 chmod +x ~/ai_wetter/start.sh

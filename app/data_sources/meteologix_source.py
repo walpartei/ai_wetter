@@ -178,10 +178,10 @@ class MeteologixDataSource(BaseDataSource):
             
             # Run the agent and get the result
             logger.info("Running browser-use agent")
-            await agent.run()
+            result = await agent.run()
             
             # Parse the agent's response to extract JSON
-            response = agent.messages[-1].content
+            response = result.text if hasattr(result, 'text') else str(result)
             logger.info(f"Agent response: {response[:100]}...")
             
             # Try to extract JSON from the response
