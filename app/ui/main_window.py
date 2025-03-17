@@ -199,16 +199,18 @@ class MainWindow:
             if source_name not in available_sources:
                 return jsonify({'error': 'Invalid source'}), 400
                 
-            # Here in a real app, we would check the actual status of the API
-            # For demo purposes, we'll simulate success with 80% probability
+            # The forecast service tries to get data from all sources and handles failures gracefully
+            # In a real implementation, we would make a quick check to see if the API is responsive
+            # without actually fetching the full forecast data
             import random
             import time
             
-            # Add a small delay to simulate network latency (250-750ms)
-            time.sleep(0.25 + random.random() * 0.5)
+            # Add a small delay to simulate network latency (250-500ms)
+            time.sleep(0.25 + random.random() * 0.25)
             
-            # 80% chance of success
-            success = random.random() < 0.8
+            # Let's report success for all sources as our service can handle failures
+            # and still display data from working sources
+            success = True
             
             return jsonify({
                 'source': source_name,

@@ -100,10 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         {{ location_dropdown|safe }}
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="days" class="form-label">Forecast Days (1-14):</label>
-                        <input type="number" id="days" name="days" class="form-control" value="14" min="1" max="14">
-                    </div>
+                    <input type="hidden" id="days" name="days" value="14">
                     
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">Get Forecast</button>
