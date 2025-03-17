@@ -3,7 +3,11 @@ import os
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response
+import time
+import re
+from queue import Queue, Empty
+from threading import Lock
 
 from app.models import Location
 from app.services import ForecastService, HistoryService, ReportService
@@ -16,6 +20,75 @@ from app.utils.logging import get_logger
 from app.utils.auth import login_required, get_site_password, is_authenticated
 
 logger = get_logger()
+
+
+class LogManager:
+    """Manages logs for the Meteologix browser automation process."""
+    
+    def __init__(self):
+        self.logs = []
+        self.log_lock = Lock()
+        self.log_queue = Queue()
+        self.last_id = 0
+        
+        # Setup a log filter to capture browser-use agent logs
+        self._setup_log_capture()
+    
+    def _setup_log_capture(self):
+        """Set up capture of logs from the console."""
+        import logging
+        
+        class LogQueueHandler(logging.Handler):
+            def __init__(self, log_queue):
+                super().__init__()
+                self.log_queue = log_queue
+            
+            def emit(self, record):
+                # Only capture logs from browser-use or Meteologix
+                log_message = self.format(record)
+                if '[agent]' in log_message or 'browser-use' in log_message or 'Meteologix' in log_message:
+                    self.log_queue.put({
+                        'timestamp': int(time.time() * 1000),
+                        'level': record.levelname,
+                        'message': log_message
+                    })
+        
+        # Get the root logger and add our queue handler
+        root_logger = logging.getLogger()
+        handler = LogQueueHandler(self.log_queue)
+        formatter = logging.Formatter('%(message)s')
+        handler.setFormatter(formatter)
+        root_logger.addHandler(handler)
+    
+    def process_logs(self):
+        """Process any new logs in the queue."""
+        with self.log_lock:
+            try:
+                while True:
+                    log_entry = self.log_queue.get_nowait()
+                    log_entry['id'] = self.last_id + 1
+                    self.last_id += 1
+                    self.logs.append(log_entry)
+                    
+                    # Keep only the last 1000 logs
+                    if len(self.logs) > 1000:
+                        self.logs.pop(0)
+                    
+                    self.log_queue.task_done()
+            except Empty:
+                pass
+    
+    def get_logs(self, since_id=0):
+        """Get logs since the given ID."""
+        self.process_logs()
+        with self.log_lock:
+            return [log for log in self.logs if log['id'] > since_id]
+    
+    def clear_logs(self):
+        """Clear all logs."""
+        with self.log_lock:
+            self.logs = []
+            self.last_id = 0
 
 
 class MainWindow:
@@ -33,6 +106,9 @@ class MainWindow:
         
         # Initialize UI components
         self.location_selector = LocationSelector()
+        
+        # Add log manager for browser automation logs
+        self.log_manager = LogManager()
         
         # Setup routes
         self._setup_routes()
@@ -242,6 +318,14 @@ class MainWindow:
             history_html = HistoryView.render_history_details(history_entry, location)
             
             return jsonify({'html': history_html})
+        
+        @self.app.route('/api/logs/meteologix', methods=['GET'])
+        @login_required
+        def get_meteologix_logs():
+            """API endpoint to get Meteologix browser automation logs."""
+            since_id = int(request.args.get('since', 0))
+            logs = self.log_manager.get_logs(since_id)
+            return jsonify({'logs': logs})
     
     def run(self, host: str = '0.0.0.0', port: int = 5000, debug: bool = False):
         """Run the Flask application."""

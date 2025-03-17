@@ -53,6 +53,71 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
+            // For Meteologix, we'll poll for logs if it's enabled
+            const hasMeteologix = availableSources.includes('Meteologix');
+            let logPollingInterval = null;
+            
+            if (hasMeteologix) {
+                const logContainer = document.querySelector('#meteologix-logs .log-container');
+                let lastLogId = 0;
+                
+                // Function to format timestamp
+                function formatTime(timestamp) {
+                    const date = new Date(timestamp);
+                    return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+                
+                // Start polling for logs
+                logPollingInterval = setInterval(() => {
+                    fetch(`/api/logs/meteologix?location=${location}&since=${lastLogId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.logs && data.logs.length > 0) {
+                                // Update the last log ID
+                                lastLogId = data.logs[data.logs.length - 1].id;
+                                
+                                // Add new logs to container
+                                data.logs.forEach(log => {
+                                    const logEntry = document.createElement('div');
+                                    logEntry.className = 'log-entry';
+                                    
+                                    // Color based on log level
+                                    if (log.message.includes('ERROR') || log.message.includes('error')) {
+                                        logEntry.className += ' text-danger';
+                                    } else if (log.message.includes('WARNING') || log.message.includes('warning')) {
+                                        logEntry.className += ' text-warning';
+                                    } else if (log.message.includes('SUCCESS') || log.message.includes('success')) {
+                                        logEntry.className += ' text-success';
+                                    } else {
+                                        logEntry.className += ' text-muted';
+                                    }
+                                    
+                                    // Process agent logs to highlight steps
+                                    let message = log.message;
+                                    if (message.includes('[agent]')) {
+                                        message = message.replace(/\[agent\]/g, '<strong class="text-primary">[agent]</strong>');
+                                        
+                                        // Highlight steps
+                                        message = message.replace(/(📍 Step \d+)/g, '<span class="text-success">$1</span>');
+                                        // Highlight success
+                                        message = message.replace(/(✅ Task completed|✅ Successfully)/g, '<span class="text-success fw-bold">$1</span>');
+                                    }
+                                    
+                                    // Format the log entry
+                                    logEntry.innerHTML = `<span class="time">${formatTime(log.timestamp)}</span> ${message}`;
+                                    logContainer.appendChild(logEntry);
+                                    
+                                    // Auto-scroll to bottom
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching logs:', error);
+                        });
+                }, 1000); // Poll every second
+            }
+            
             // Make API calls to check status for each source
             availableSources.forEach(source => {
                 // Use fetch to call our API status endpoint
@@ -60,20 +125,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => response.json())
                     .then(data => {
                         updateSourceStatus(source, data.status);
+                        
+                        // If this is Meteologix and it's done, stop polling logs
+                        if (source === 'Meteologix' && (data.status === 'success' || data.status === 'error')) {
+                            if (logPollingInterval) {
+                                clearInterval(logPollingInterval);
+                            }
+                        }
                     })
                     .catch(error => {
                         console.error('Error checking source status:', error);
                         updateSourceStatus(source, 'error');
                         
-                        // Show special warning for Meteologix
+                        // Stop log polling and show warning for Meteologix
                         if (source === 'Meteologix') {
+                            if (logPollingInterval) {
+                                clearInterval(logPollingInterval);
+                            }
                             document.getElementById('meteologix-warning').style.display = 'block';
                         }
                     });
             });
-            
-            // Look for Meteologix in available sources
-            const hasMeteologix = availableSources.includes('Meteologix');
             
             // Fallback: if nothing happens, just redirect (longer timeout if Meteologix is enabled)
             setTimeout(function() {
@@ -166,9 +238,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 100%"></div>
                             </div>
                             {% if source == 'Meteologix' %}
-                            <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle"></i> Using AI browser automation (may take up to 60 seconds)
-                            </small>
+                            <div class="mt-2" id="meteologix-logs">
+                                <div class="log-container" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
+                                    <div class="log-entry text-muted"><span class="time">00:00</span> Initializing browser automation...</div>
+                                </div>
+                            </div>
                             <small class="text-warning d-block mt-1" id="meteologix-warning" style="display: none;">
                                 <i class="fas fa-exclamation-triangle"></i> Browser automation may not be available on this server
                             </small>
