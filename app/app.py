@@ -20,8 +20,14 @@ def create_app():
     window = MainWindow()
     app = window.app
     
-    # For production, set the secret key
-    app.secret_key = 'ai_wetter_secret_key'  # For flash messages
+    # Get secret key from environment variable or use default
+    secret_key = os.environ.get('AI_WETTER_SECRET_KEY', 'ai_wetter_secret_key')
+    app.secret_key = secret_key
+    
+    # Configure session
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_PERMANENT'] = False
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
     
     return app
 

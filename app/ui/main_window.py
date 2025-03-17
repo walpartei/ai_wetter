@@ -1,8 +1,9 @@
 import json
+import os
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 
 from app.models import Location
 from app.services import ForecastService, HistoryService, ReportService
@@ -12,6 +13,7 @@ from app.ui.history_view import HistoryView
 from app.ui.report_view import ReportView
 from app.utils.config import Config
 from app.utils.logging import get_logger
+from app.utils.auth import login_required, get_site_password, is_authenticated
 
 logger = get_logger()
 
@@ -38,7 +40,30 @@ class MainWindow:
     def _setup_routes(self):
         """Setup Flask routes."""
         
+        @self.app.route('/login', methods=['GET', 'POST'])
+        def login():
+            """Login page."""
+            if request.method == 'POST':
+                password = request.form.get('password')
+                if password == get_site_password():
+                    session['authenticated'] = True
+                    next_url = request.args.get('next', url_for('index'))
+                    flash('Login successful', 'success')
+                    return redirect(next_url)
+                else:
+                    flash('Invalid password', 'danger')
+            
+            return render_template('login.html')
+            
+        @self.app.route('/logout')
+        def logout():
+            """Logout the user."""
+            session.pop('authenticated', None)
+            flash('You have been logged out', 'info')
+            return redirect(url_for('login'))
+        
         @self.app.route('/')
+        @login_required
         def index():
             """Home page."""
             locations = self.location_selector.get_locations()
@@ -51,6 +76,7 @@ class MainWindow:
                                    available_sources=self.forecast_service.get_available_sources())
         
         @self.app.route('/forecast', methods=['GET'])
+        @login_required
         def get_forecast():
             """Get forecast for a location."""
             location_id = request.args.get('location', '')
@@ -87,6 +113,7 @@ class MainWindow:
                                    comparison_wind=charts.get('comparison_wind', ''))
         
         @self.app.route('/history', methods=['GET'])
+        @login_required
         def get_history():
             """View history for a location."""
             location_id = request.args.get('location', '')
@@ -108,6 +135,7 @@ class MainWindow:
                                    history_data=json.dumps(history))
         
         @self.app.route('/report/generate', methods=['GET'])
+        @login_required
         def generate_report():
             """Generate a new report for a location."""
             location_id = request.args.get('location', '')
@@ -135,6 +163,7 @@ class MainWindow:
                                    report_html=report_html)
         
         @self.app.route('/report/list', methods=['GET'])
+        @login_required
         def list_reports():
             """List saved reports for a location."""
             location_id = request.args.get('location', '')
@@ -155,6 +184,7 @@ class MainWindow:
                                    report_list=report_list)
         
         @self.app.route('/api/history/details', methods=['GET'])
+        @login_required
         def get_history_details():
             """API endpoint to get historical forecast details."""
             location_id = request.args.get('location', '')
