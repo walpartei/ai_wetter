@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Reports for {{ location.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item active">Saved Reports for {{ location.name }}</li>
+            </ol>
+        </nav>
+        <h2>Saved Reports for {{ location.name }}, {{ location.region }}</h2>
+        <p class="text-muted">View previously generated reports</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h3>Available Reports</h3>
+            </div>
+            <div class="card-body">
+                {{ report_list|safe }}
+                
+                {% if not report_list %}
+                <div class="text-center mt-4">
+                    <a href="/report/generate?location={{ location.id }}" class="btn btn-primary">Generate New Report</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/forecast?location={{ location.id }}" class="btn btn-outline-primary">View Forecast</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/history?location={{ location.id }}" class="btn btn-outline-secondary">View History</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/generate?location={{ location.id }}" class="btn btn-outline-success">Generate New Report</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Forecast History for {{ location.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item active">History for {{ location.name }}</li>
+            </ol>
+        </nav>
+        <h2>Forecast History for {{ location.name }}, {{ location.region }}</h2>
+        <p class="text-muted">View previously saved forecasts</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h3>Historical Forecasts</h3>
+            </div>
+            <div class="card-body">
+                {{ history_list|safe }}
+                
+                {% if not history_list %}
+                <div class="text-center mt-4">
+                    <a href="/forecast?location={{ location.id }}" class="btn btn-primary">Get New Forecast</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/forecast?location={{ location.id }}" class="btn btn-outline-primary">Get New Forecast</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/generate?location={{ location.id }}" class="btn btn-outline-success">Generate Report</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/list?location={{ location.id }}" class="btn btn-outline-info">Saved Reports</a>
+        </div>
+    </div>
+</div>
+
+<!-- History Details Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" id="historyModalContent">
+            <!-- Content will be loaded dynamically -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load history details when modal is shown
+    document.addEventListener('DOMContentLoaded', function() {
+        const historyModal = document.getElementById('historyModal');
+        const modalContent = document.getElementById('historyModalContent');
+        const historyItems = document.querySelectorAll('[data-history-id]');
+        
+        // Add click event to history items
+        historyItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const historyId = this.getAttribute('data-history-id');
+                
+                // Show loading indicator
+                modalContent.innerHTML = '<div class="modal-body"><div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div></div>';
+                
+                // Fetch history details
+                fetch(`/api/history/details?location={{ location.id }}&date=${historyId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.html) {
+                            modalContent.innerHTML = data.html;
+                        } else {
+                            modalContent.innerHTML = '<div class="modal-body"><div class="alert alert-danger">Error loading history details</div></div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        modalContent.innerHTML = '<div class="modal-body"><div class="alert alert-danger">Error loading history details</div></div>';
+                    });
+            });
+        });
+    });
+</script>
+{% endblock %}

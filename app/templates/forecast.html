@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Weather Forecast for {{ location.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item active">Forecast for {{ location.name }}</li>
+            </ol>
+        </nav>
+        <h2>{{ days }}-Day Weather Forecast for {{ location.name }}, {{ location.region }}</h2>
+        <p class="text-muted">Lat: {{ location.latitude }}, Lon: {{ location.longitude }}</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h3>Forecast Overview</h3>
+            </div>
+            <div class="card-body">
+                {{ forecast_table|safe }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h3>Temperature Forecast</h3>
+            </div>
+            <div class="card-body text-center">
+                {% if temperature_chart %}
+                <img src="data:image/png;base64,{{ temperature_chart }}" class="img-fluid" alt="Temperature Chart">
+                {% else %}
+                <div class="alert alert-warning">Temperature chart not available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h3>Precipitation & Humidity</h3>
+            </div>
+            <div class="card-body text-center">
+                {% if precipitation_chart %}
+                <img src="data:image/png;base64,{{ precipitation_chart }}" class="img-fluid" alt="Precipitation Chart">
+                {% else %}
+                <div class="alert alert-warning">Precipitation chart not available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h3>Wind Forecast</h3>
+            </div>
+            <div class="card-body text-center">
+                {% if wind_chart %}
+                <img src="data:image/png;base64,{{ wind_chart }}" class="img-fluid" alt="Wind Chart">
+                {% else %}
+                <div class="alert alert-warning">Wind chart not available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h3>Forecast Confidence</h3>
+            </div>
+            <div class="card-body text-center">
+                {% if confidence_chart %}
+                <img src="data:image/png;base64,{{ confidence_chart }}" class="img-fluid" alt="Confidence Chart">
+                {% else %}
+                <div class="alert alert-warning">Confidence chart not available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h3>Source Comparison</h3>
+            </div>
+            <div class="card-body">
+                {{ sources_table|safe }}
+                
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header">Temperature Comparison</div>
+                            <div class="card-body text-center">
+                                {% if comparison_temp %}
+                                <img src="data:image/png;base64,{{ comparison_temp }}" class="img-fluid" alt="Temperature Comparison">
+                                {% else %}
+                                <div class="alert alert-warning">Chart not available</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header">Precipitation Comparison</div>
+                            <div class="card-body text-center">
+                                {% if comparison_precip %}
+                                <img src="data:image/png;base64,{{ comparison_precip }}" class="img-fluid" alt="Precipitation Comparison">
+                                {% else %}
+                                <div class="alert alert-warning">Chart not available</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header">Wind Comparison</div>
+                            <div class="card-body text-center">
+                                {% if comparison_wind %}
+                                <img src="data:image/png;base64,{{ comparison_wind }}" class="img-fluid" alt="Wind Comparison">
+                                {% else %}
+                                <div class="alert alert-warning">Chart not available</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/history?location={{ location.id }}" class="btn btn-outline-secondary">View History</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/generate?location={{ location.id }}" class="btn btn-outline-success">Generate Report</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/list?location={{ location.id }}" class="btn btn-outline-info">Saved Reports</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

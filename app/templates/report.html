@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Weather Report for {{ location.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item active">Report for {{ location.name }}</li>
+            </ol>
+        </nav>
+        <h2>Weather Report for {{ location.name }}, {{ location.region }}</h2>
+        <p class="text-muted">Comprehensive weather analysis</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        {{ report_html|safe }}
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/forecast?location={{ location.id }}" class="btn btn-outline-primary">View Forecast</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/history?location={{ location.id }}" class="btn btn-outline-secondary">View History</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-grid gap-2">
+            <a href="/report/list?location={{ location.id }}" class="btn btn-outline-info">Saved Reports</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

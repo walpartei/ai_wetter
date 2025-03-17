@@ -1,0 +1,205 @@
+[
+    {
+        "id": "sofia",
+        "name": "Sofia",
+        "latitude": 42.6977,
+        "longitude": 23.3219,
+        "region": "Sofia-Capital"
+    },
+    {
+        "id": "plovdiv",
+        "name": "Plovdiv",
+        "latitude": 42.1354,
+        "longitude": 24.7453,
+        "region": "Plovdiv"
+    },
+    {
+        "id": "varna",
+        "name": "Varna",
+        "latitude": 43.2141,
+        "longitude": 27.9147,
+        "region": "Varna"
+    },
+    {
+        "id": "burgas",
+        "name": "Burgas",
+        "latitude": 42.5048,
+        "longitude": 27.4626,
+        "region": "Burgas"
+    },
+    {
+        "id": "ruse",
+        "name": "Ruse",
+        "latitude": 43.8564,
+        "longitude": 25.9706,
+        "region": "Ruse"
+    },
+    {
+        "id": "stara_zagora",
+        "name": "Stara Zagora",
+        "latitude": 42.4257,
+        "longitude": 25.6349,
+        "region": "Stara Zagora"
+    },
+    {
+        "id": "pleven",
+        "name": "Pleven",
+        "latitude": 43.4092,
+        "longitude": 24.6139,
+        "region": "Pleven"
+    },
+    {
+        "id": "dobrich",
+        "name": "Dobrich",
+        "latitude": 43.5721,
+        "longitude": 27.8298,
+        "region": "Dobrich"
+    },
+    {
+        "id": "shumen",
+        "name": "Shumen",
+        "latitude": 43.2712,
+        "longitude": 26.9361,
+        "region": "Shumen"
+    },
+    {
+        "id": "veliko_tarnovo",
+        "name": "Veliko Tarnovo",
+        "latitude": 43.0757,
+        "longitude": 25.6171,
+        "region": "Veliko Tarnovo"
+    },
+    {
+        "id": "blagoevgrad",
+        "name": "Blagoevgrad",
+        "latitude": 42.0116,
+        "longitude": 23.0905,
+        "region": "Blagoevgrad"
+    },
+    {
+        "id": "vidin",
+        "name": "Vidin",
+        "latitude": 43.9941,
+        "longitude": 22.8679,
+        "region": "Vidin"
+    },
+    {
+        "id": "montana",
+        "name": "Montana",
+        "latitude": 43.4125,
+        "longitude": 23.2257,
+        "region": "Montana"
+    },
+    {
+        "id": "gabrovo",
+        "name": "Gabrovo",
+        "latitude": 42.8747,
+        "longitude": 25.3342,
+        "region": "Gabrovo"
+    },
+    {
+        "id": "kardzhali",
+        "name": "Kardzhali",
+        "latitude": 41.6338,
+        "longitude": 25.3777,
+        "region": "Kardzhali"
+    },
+    {
+        "id": "kyustendil",
+        "name": "Kyustendil",
+        "latitude": 42.2858,
+        "longitude": 22.6952,
+        "region": "Kyustendil"
+    },
+    {
+        "id": "lovech",
+        "name": "Lovech",
+        "latitude": 43.1351,
+        "longitude": 24.7151,
+        "region": "Lovech"
+    },
+    {
+        "id": "pazardzhik",
+        "name": "Pazardzhik",
+        "latitude": 42.1922,
+        "longitude": 24.3314,
+        "region": "Pazardzhik"
+    },
+    {
+        "id": "pernik",
+        "name": "Pernik",
+        "latitude": 42.6092,
+        "longitude": 23.0309,
+        "region": "Pernik"
+    },
+    {
+        "id": "razgrad",
+        "name": "Razgrad",
+        "latitude": 43.5334,
+        "longitude": 26.5263,
+        "region": "Razgrad"
+    },
+    {
+        "id": "silistra",
+        "name": "Silistra",
+        "latitude": 44.1194,
+        "longitude": 27.2614,
+        "region": "Silistra"
+    },
+    {
+        "id": "sliven",
+        "name": "Sliven",
+        "latitude": 42.6796,
+        "longitude": 26.3322,
+        "region": "Sliven"
+    },
+    {
+        "id": "smolyan",
+        "name": "Smolyan",
+        "latitude": 41.5774,
+        "longitude": 24.7012,
+        "region": "Smolyan"
+    },
+    {
+        "id": "targovishte",
+        "name": "Targovishte",
+        "latitude": 43.2499,
+        "longitude": 26.5623,
+        "region": "Targovishte"
+    },
+    {
+        "id": "haskovo",
+        "name": "Haskovo",
+        "latitude": 41.9344,
+        "longitude": 25.5554,
+        "region": "Haskovo"
+    },
+    {
+        "id": "yambol",
+        "name": "Yambol",
+        "latitude": 42.4841,
+        "longitude": 26.5106,
+        "region": "Yambol"
+    },
+    {
+        "id": "vratsa",
+        "name": "Vratsa",
+        "latitude": 43.2103,
+        "longitude": 23.5529,
+        "region": "Vratsa"
+    },
+    {
+        "id": "general_toshevo",
+        "name": "General Toshevo",
+        "latitude": 43.7028,
+        "longitude": 28.0361,
+        "region": "Dobrich"
+    },
+    {
+        "id": "balchik",
+        "name": "Balchik",
+        "latitude": 43.4228,
+        "longitude": 28.1589,
+        "region": "Dobrich"
+    }
+]

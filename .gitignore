@@ -1,0 +1,44 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Local development settings
+.env
+.env.local
+instance/
+
+# Flask
+instance/
+.webassets-cache
+
+# Log files
+*.log
+
+# Data files (except the sample data)
+data/history/*
+data/reports/*
+data/logs/*
+!data/history/.gitkeep
+!data/reports/.gitkeep
+!data/logs/.gitkeep
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

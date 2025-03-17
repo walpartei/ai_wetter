@@ -1,0 +1,29 @@
+services:
+  # Web service
+  - type: web
+    name: ai-wetter
+    env: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn 'app.app:create_app()' --bind=0.0.0.0:$PORT --workers=2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.16
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /
+    autoDeploy: true
+
+  # Optional database if needed in the future
+  # - type: pserv
+  #   name: ai-wetter-db
+  #   env: docker
+  #   dockerfilePath: ./db.Dockerfile
+  #   envVars:
+  #     - key: POSTGRES_USER
+  #       value: postgres
+  #     - key: POSTGRES_PASSWORD
+  #       fromDatabase:
+  #         name: ai-wetter-db
+  #         property: password
+  #     - key: POSTGRES_DB
+  #       value: ai_wetter
