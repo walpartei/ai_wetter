@@ -67,7 +67,7 @@ class MainWindow:
         def index():
             """Home page."""
             locations = self.location_selector.get_locations()
-            default_location_id = self.config.get_app_setting("default_location", "varna" if locations else None)
+            default_location_id = self.config.get_app_setting("default_location", "devnya" if locations else None)
             location_dropdown = self.location_selector.render_dropdown(default_location_id)
             
             return render_template('index.html', 

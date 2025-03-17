@@ -1,0 +1,20 @@
+{
+    "api": {
+        "ecmwf": {
+            "url": "https://api.ecmwf.int/v1",
+            "key": "b64cad57c8c084de0242df1110ef67e3",
+            "email": "l@lll.uno"
+        },
+        "meteoblue": {
+            "key": "rv1lLgwaCJGiuKoF"
+        },
+        "meteologix": {
+            "enabled": false
+        }
+    },
+    "app": {
+        "default_days": 14,
+        "default_location": "devnya",
+        "theme": "light"
+    }
+}

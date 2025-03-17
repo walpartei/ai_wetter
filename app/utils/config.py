@@ -58,7 +58,7 @@ class Config:
                 "api": API_CONFIG,
                 "app": {
                     "default_days": 14,
-                    "default_location": "Varna",
+                    "default_location": "devnya",
                     "theme": "light"
                 }
             }

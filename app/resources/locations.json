@@ -201,5 +201,12 @@
         "latitude": 43.4228,
         "longitude": 28.1589,
         "region": "Dobrich"
+    },
+    {
+        "id": "devnya",
+        "name": "Devnya",
+        "latitude": 43.2225,
+        "longitude": 27.5687,
+        "region": "Varna"
     }
 ]
