@@ -58,4 +58,4 @@ class LocationSelector:
             selected = 'selected' if location.id == selected_id else ''
             options.append(f'<option value="{location.id}" {selected}>{location.name}, {location.region}</option>')
             
-        return f'<select id="location-select" name="location" class="form-select">{"\n".join(options)}</select>'
+        return f'<select id="location-select" name="location" class="form-select">{"".join(options)}</select>'
