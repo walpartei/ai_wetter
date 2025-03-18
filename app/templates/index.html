@@ -28,25 +28,19 @@ document.addEventListener('DOMContentLoaded', function() {
             function updateSourceStatus(source, status) {
                 const sourceElement = document.getElementById(`api-${source.toLowerCase()}`);
                 const statusIcon = sourceElement.querySelector('.status-icon i');
-                const progressBar = sourceElement.querySelector('.progress-bar');
                 
                 sourceStatus[source] = status;
                 
                 if (status === 'success') {
                     statusIcon.className = 'fas fa-check-circle text-success';
-                    progressBar.className = 'progress-bar bg-success';
                 } else if (status === 'error') {
                     statusIcon.className = 'fas fa-times-circle text-danger';
-                    progressBar.className = 'progress-bar bg-danger';
                 }
                 
                 // Check if all sources are done
                 const allDone = Object.values(sourceStatus).every(s => s === 'success' || s === 'error');
                 if (allDone) {
-                    document.getElementById('loading-progress').innerHTML = 
-                        '<small class="text-success">Forecast data ready!</small>';
-                    
-                    // Redirect after a brief delay
+                    // Immediately redirect when all sources are done
                     setTimeout(function() {
                         window.location.href = `/forecast?location=${location}&days=${days}`;
                     }, 700);
@@ -171,13 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
             });
             
-            // Fallback: update message after a while to show we're still working
-            setTimeout(function() {
-                if (!Object.values(sourceStatus).every(s => s === 'success' || s === 'error')) {
-                    document.getElementById('loading-progress').innerHTML = 
-                        '<small class="text-info">Still processing weather data sources...</small>';
-                }
-            }, 10000);
+            // No need for fallback message with simplified UI
             
             // Extend the timeout for Meteologix since it uses a browser scraper
             const timeoutDuration = hasMeteologix ? 70000 : 10000; // 70 seconds if Meteologix is enabled
@@ -260,9 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="d-flex align-items-center mb-3 api-status" id="api-{{ source.lower() }}">
                         <div class="source-badge source-{{ source.lower() }} me-2">{{ source }}</div>
                         <div class="flex-grow-1">
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 100%"></div>
-                            </div>
+                            <!-- Progress bar removed -->
                             {% if source == 'Meteologix' %}
                             <div class="mt-2" id="meteologix-logs">
                                 <div class="log-container" style="max-height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 10px; background-color: #f8f9fa; border-radius: 4px; border: 1px solid #dee2e6;">
@@ -295,9 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     {% endfor %}
                 </div>
                 
-                <div class="mt-3 text-center" id="loading-progress">
-                    <small class="text-muted">Retrieving weather data...</small>
-                </div>
+                <!-- Loading progress message removed -->
             </div>
         </div>
     </div>
