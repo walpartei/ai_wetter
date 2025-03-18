@@ -83,13 +83,57 @@ print(f"Added user site packages directory to path: {user_site}")
 os.environ["PYTHONPATH"] = f"{user_site}:{os.environ.get('PYTHONPATH', '')}"
 print(f"Updated PYTHONPATH with user site packages")
 
+# Create a symbolic link to handle the dash vs underscore package name issue
+import os
+import subprocess
+try:
+    # Get the path to the dm-haiku installation
+    site_packages_dir = site.USER_SITE
+    print(f"Looking for dm-haiku in {site_packages_dir}")
+    
+    # Create a symbolic link from dm_haiku to dm-haiku
+    if os.path.exists(f"{site_packages_dir}/dm_haiku"):
+        print("dm_haiku directory already exists")
+    elif os.path.exists(f"{site_packages_dir}/dm-haiku"):
+        print(f"Creating symlink from dm-haiku to dm_haiku")
+        os.symlink(f"{site_packages_dir}/dm-haiku", f"{site_packages_dir}/dm_haiku")
+    else:
+        print("Neither dm-haiku nor dm_haiku found, listing site packages:")
+        subprocess.run(["ls", "-la", site_packages_dir], check=True)
+        raise ImportError("Cannot find dm-haiku package")
+    
+    # Also try installing directly with underscore name
+    subprocess.run(["pip", "install", "--user", "git+https://github.com/deepmind/dm-haiku.git"], check=True)
+    
+    # List installed packages for debugging
+    subprocess.run(["pip", "list"], check=True)
+except Exception as e:
+    print(f"Error setting up dm-haiku: {e}")
+
 # Import required libraries
 import dataclasses
 from datetime import datetime, timedelta
 import math
 from typing import Optional
 from pathlib import Path
-import dm_haiku as hk
+
+# Try to import with different names to handle package name variations
+try:
+    import dm_haiku as hk
+    print("Successfully imported dm_haiku")
+except ImportError:
+    try:
+        import haiku as hk
+        print("Successfully imported haiku")
+    except ImportError:
+        try:
+            import dm-haiku as hk
+            print("Successfully imported dm-haiku")
+        except ImportError:
+            import sys
+            print(f"Python path: {sys.path}")
+            print("Failed to import haiku module, continuing without it")
+
 import jax
 import numpy as np
 import xarray
