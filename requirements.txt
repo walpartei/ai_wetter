@@ -11,3 +11,10 @@ playwright>=1.49.0
 langchain-core>=0.3.35
 langchain-openai>=0.3.1
 python-dotenv>=1.0.1
+
+# GenCast requirements
+xarray>=2023.1.0
+zarr>=2.14.0 
+netCDF4>=1.6.0
+google-cloud-storage>=2.8.0
+jsonpickle>=3.0.0

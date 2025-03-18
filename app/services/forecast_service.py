@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
-from app.data_sources import ECMWFDataSource, MeteoblueDataSource, MeteologixDataSource
+from app.data_sources import ECMWFDataSource, MeteoblueDataSource, MeteologixDataSource, GenCastDataSource
 from app.models import Location, Forecast, CombinedForecast
 from app.utils.logging import get_logger
 from app.utils.storage import save_forecast_history
@@ -17,7 +17,8 @@ class ForecastService:
         self.data_sources = [
             ECMWFDataSource(),
             MeteoblueDataSource(),
-            MeteologixDataSource()
+            MeteologixDataSource(),
+            GenCastDataSource()
         ]
         # Filter only available data sources
         self.data_sources = [ds for ds in self.data_sources if ds.is_available()]

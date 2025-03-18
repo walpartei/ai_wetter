@@ -28,6 +28,18 @@ API_CONFIG = {
     },
     "meteologix": {
         "enabled": True  # Now enabled with browser-use implementation
+    },
+    "gencast": {
+        "enabled": True,
+        "project_id": "ai-wetter",
+        "bucket_name": "ai_wetter_bucket",
+        "zone": "us-east5-a", 
+        "accelerator_type": "v5p-8",
+        "runtime_version": "v2-alpha-tpuv5",
+        "model_path": "gs://dm_graphcast/gencast/params/GenCast 0p25deg Operational <2019.npz",
+        "stats_path": "gs://dm_graphcast/gencast/stats/",
+        # Default to 1 sample for normal use, can be increased for ensemble forecasts
+        "ensemble_samples": 1
     }
 }
 
