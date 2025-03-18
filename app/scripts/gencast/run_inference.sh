@@ -63,7 +63,7 @@ print(f"Output ID: {args.output}\n")
 sys.stdout.write("Installing required packages...\n")
 sys.stdout.flush()
 subprocess.run(["pip", "install", "-U", "jax[tpu]", "-f", "https://storage.googleapis.com/jax-releases/libtpu_releases.html"], check=True)
-subprocess.run(["pip", "install", "-U", "xarray", "zarr", "numpy", "matplotlib", "haiku", "optax"], check=True)
+subprocess.run(["pip", "install", "-U", "xarray", "zarr", "numpy", "matplotlib", "dm-haiku", "optax"], check=True)
 subprocess.run(["pip", "install", "-U", "https://github.com/deepmind/graphcast/archive/master.zip"], check=True)
 
 # Import required libraries
@@ -72,7 +72,7 @@ from datetime import datetime, timedelta
 import math
 from typing import Optional
 from pathlib import Path
-import haiku as hk
+import dm_haiku as hk
 import jax
 import numpy as np
 import xarray
