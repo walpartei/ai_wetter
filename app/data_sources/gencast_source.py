@@ -251,93 +251,369 @@ import xarray as xr
 import zarr
 import os
 import json
-from datetime import datetime
-import jsonpickle
+import time
+import dataclasses
+import math
+import haiku as hk
+from datetime import datetime, timedelta
+import statistics
 
 print(f'Number of devices: {jax.device_count()}')
+print(f'JAX devices: {jax.devices()}')
 
-# Load input data
-input_data = xr.load_dataset('input_data.nc')
+# Import GenCast dependencies
+# These will be installed via the pip command in the script
+from graphcast import rollout
+from graphcast import xarray_jax
+from graphcast import normalization
+from graphcast import checkpoint
+from graphcast import data_utils
+from graphcast import xarray_tree
+from graphcast import gencast
+from graphcast import denoiser
+from graphcast import nan_cleaning
 
-# Extract metadata
+# Extract metadata from environment
 latitude = float(os.environ.get('LATITUDE'))
 longitude = float(os.environ.get('LONGITUDE'))
 days = int(os.environ.get('DAYS'))
 ensemble_samples = int(os.environ.get('SAMPLES', 1))
 
-# Find nearest grid points for our location of interest
-lat_idx = (np.abs(input_data.lat.values - latitude)).argmin()
-lon_idx = (np.abs(input_data.lon.values - longitude)).argmin()
+# Calculate number of timesteps needed (usually in 12-hour increments)
+num_steps = days * 2  # Two steps per day with 12-hour intervals
 
-# Extract the target location for result processing
-target_lat = float(input_data.lat.values[lat_idx])
-target_lon = float(input_data.lon.values[lon_idx])
-print(f"Target location: {target_lat}, {target_lon}")
+print(f"Running GenCast for location: {latitude}, {longitude}")
+print(f"Generating {days} days of forecast with {ensemble_samples} ensemble members")
 
-# In a full implementation, we would now:
-# 1. Load the GenCast model using the JAX/Haiku APIs
-# 2. Prepare the input data for the model
-# 3. Run the model to generate predictions
-# 4. Process the predictions to extract forecasts
+# Load the GenCast model
+print("Loading GenCast model...")
+model_path = "GenCast 0p25deg Operational <2019.npz"
+try:
+    with open(model_path, "rb") as f:
+        print(f"Loading checkpoint from {model_path}")
+        ckpt = checkpoint.load(f, gencast.CheckPoint)
+        print("Checkpoint loaded successfully")
+except Exception as e:
+    print(f"Error loading checkpoint: {e}")
+    available_files = os.listdir()
+    print(f"Available files in current directory: {available_files}")
+    raise
 
-# For now, we'll generate a structured simulated output
-# This would be replaced with actual model inference in production
+# Extract model configurations
+params = ckpt.params
+state = {}
+task_config = ckpt.task_config
+sampler_config = ckpt.sampler_config
+noise_config = ckpt.noise_config
+noise_encoder_config = ckpt.noise_encoder_config
+denoiser_architecture_config = ckpt.denoiser_architecture_config
+print("Model description:", ckpt.description)
 
-def generate_simulated_forecast():
-    """Generate simulated forecast data at a single location."""
-    # Start with today's date
-    start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+# Load normalization data
+print("Loading normalization data...")
+with open("stats/diffs_stddev_by_level.nc", "rb") as f:
+    diffs_stddev_by_level = xr.load_dataset(f).compute()
+with open("stats/mean_by_level.nc", "rb") as f:
+    mean_by_level = xr.load_dataset(f).compute()
+with open("stats/stddev_by_level.nc", "rb") as f:
+    stddev_by_level = xr.load_dataset(f).compute()
+with open("stats/min_by_level.nc", "rb") as f:
+    min_by_level = xr.load_dataset(f).compute()
+print("Normalization data loaded")
+
+# Prepare model input data for the location
+print("Creating input data...")
+# This is a simplified version of input preparation
+# In a full implementation, we would use actual weather data from a global source
+
+# Create an example input for GenCast
+# This replicates part of the process from the GenCast colab notebook
+ds = xr.Dataset()
+
+# Create a grid
+# For 0.25 degree resolution
+lat_range = np.linspace(-90, 90, 721)
+lon_range = np.linspace(-180, 180, 1441)
+
+# Create a time array with current timestamp and 12h before
+now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+times = [now - timedelta(hours=12), now]
+
+# Create input coordinates
+ds.coords["time"] = times
+ds.coords["lat"] = lat_range
+ds.coords["lon"] = lon_range
+
+# Create an example input for GenCast containing typical atmospheric variables
+# In a real system, this would be actual global weather data
+
+# Initialize global fields with some reasonable values
+# Temperature at 2m in K
+ds["2m_temperature"] = xr.DataArray(
+    np.ones((len(times), len(lat_range), len(lon_range))) * (15 + 273.15),
+    dims=["time", "lat", "lon"]
+)
+
+# 10m_u_component_of_wind in m/s
+ds["10m_u_component_of_wind"] = xr.DataArray(
+    np.ones((len(times), len(lat_range), len(lon_range))) * 2.0,
+    dims=["time", "lat", "lon"]
+)
+
+# 10m_v_component_of_wind in m/s
+ds["10m_v_component_of_wind"] = xr.DataArray(
+    np.ones((len(times), len(lat_range), len(lon_range))) * 2.0,
+    dims=["time", "lat", "lon"]
+)
+
+# Mean sea level pressure in Pa
+ds["mean_sea_level_pressure"] = xr.DataArray(
+    np.ones((len(times), len(lat_range), len(lon_range))) * 101325.0,
+    dims=["time", "lat", "lon"]
+)
+
+# Total precipitation in m
+ds["total_precipitation"] = xr.DataArray(
+    np.ones((len(times), len(lat_range), len(lon_range))) * 0.0,
+    dims=["time", "lat", "lon"]
+)
+
+# Find nearest grid point to our target
+lat_idx = (np.abs(ds.lat.values - latitude)).argmin()
+lon_idx = (np.abs(ds.lon.values - longitude)).argmin()
+target_lat = float(ds.lat.values[lat_idx])
+target_lon = float(ds.lon.values[lon_idx])
+print(f"Target location grid point: {target_lat}, {target_lon}")
+
+# Set up the model
+print("Setting up GenCast model...")
+
+def construct_wrapped_gencast():
+    """Constructs and wraps the GenCast Predictor."""
+    predictor = gencast.GenCast(
+        sampler_config=sampler_config,
+        task_config=task_config,
+        denoiser_architecture_config=denoiser_architecture_config,
+        noise_config=noise_config,
+        noise_encoder_config=noise_encoder_config,
+    )
+
+    predictor = normalization.InputsAndResiduals(
+        predictor,
+        diffs_stddev_by_level=diffs_stddev_by_level,
+        mean_by_level=mean_by_level,
+        stddev_by_level=stddev_by_level,
+    )
+
+    predictor = nan_cleaning.NaNCleaner(
+        predictor=predictor,
+        reintroduce_nans=True,
+        fill_value=min_by_level,
+        var_to_clean='sea_surface_temperature',
+    )
+
+    return predictor
+
+@hk.transform_with_state
+def run_forward(inputs, targets_template, forcings):
+    predictor = construct_wrapped_gencast()
+    return predictor(inputs, targets_template=targets_template, forcings=forcings)
+
+# Create targets template
+print("Creating targets template...")
+# Create a template for the forecast period
+forecast_times = [now + timedelta(hours=12*i) for i in range(1, num_steps+1)]
+targets_template = ds.copy()
+targets_template.coords["time"] = forecast_times
+# Fill with NaNs to indicate these are to be predicted
+for var in targets_template.data_vars:
+    targets_template[var].values[:] = np.nan
+
+# Prepare forcing data if needed (can be empty for GenCast)
+forcings = None
+
+# Extract inputs, targets template using the task configuration
+print("Extracting inputs and targets...")
+try:
+    ds_inputs, _, ds_forcings = data_utils.extract_inputs_targets_forcings(
+        ds, target_lead_times=slice("12h", f"{num_steps*12}h"),
+        **dataclasses.asdict(task_config))
+except Exception as e:
+    print(f"Error extracting inputs and targets: {e}")
+    raise
+
+# Initialize and jit the forward function
+print("Initializing model...")
+if params is None:
+    print("Error: Model parameters not loaded correctly")
+    sys.exit(1)
+
+# Jit the forward function
+run_forward_jitted = jax.jit(
+    lambda rng, i, t, f: run_forward.apply(params, state, rng, i, t, f)[0]
+)
+# Create a pmapped version for running in parallel
+run_forward_pmap = xarray_jax.pmap(run_forward_jitted, dim="sample")
+
+# Generate ensemble forecasts
+print(f"Generating {ensemble_samples} forecast ensemble members...")
+rng = jax.random.PRNGKey(int(time.time()))
+# We fold-in the ensemble member, this way the first N members should always
+# match across different runs which use take the same inputs
+rngs = np.stack(
+    [jax.random.fold_in(rng, i) for i in range(ensemble_samples)], axis=0)
+
+# Run the model
+print("Running GenCast inference...")
+try:
+    chunks = []
+    for chunk in rollout.chunked_prediction_generator_multiple_runs(
+        # Use pmapped version to parallelise across devices
+        predictor_fn=run_forward_pmap,
+        rngs=rngs,
+        inputs=ds_inputs,
+        targets_template=targets_template * np.nan,
+        forcings=ds_forcings,
+        num_steps_per_chunk=1,
+        num_samples=ensemble_samples,
+        pmap_devices=jax.local_devices()
+    ):
+        print(f"Generated chunk of forecast data: {chunk.dims}")
+        chunks.append(chunk)
     
-    # Base values (would be determined by model inference)
-    base_temp = 20.0 + np.random.normal(0, 2)  # Celsius
-    base_precip = max(0, np.random.gamma(1, 2))  # mm
-    base_humidity = 70.0 + np.random.normal(0, 5)  # %
-    base_wind_speed = max(0, np.random.gamma(2, 2))  # km/h
-    base_wind_direction = np.random.uniform(0, 360)  # degrees
-    base_cloud_cover = np.random.uniform(0, 100)  # %
+    # Combine the forecast chunks
+    predictions = xr.combine_by_coords(chunks)
+    print(f"Predictions shape: {predictions.dims}")
+except Exception as e:
+    print(f"Error during inference: {e}")
+    raise
+
+# Process predictions to extract forecast metrics at our target location
+print("Processing predictions...")
+
+# Extract data for our target location
+target_data = predictions.sel(lat=target_lat, lon=target_lon, method="nearest")
+
+# Function to convert the forecasts to our format
+def process_ensemble_member(member_idx):
+    """Process a single ensemble member into forecast dictionaries."""
+    # Extract this member's data
+    member_data = target_data.isel(sample=member_idx)
     
     forecasts = []
-    
-    # Generate forecasts for each day
+    # Loop through each time step (by pairs to get daily min/max)
     for day in range(days):
-        date = start_date + np.timedelta64(day, 'D')
-        
-        # Add daily variations with temporal correlation
-        temp_variation = np.random.normal(0, 1) * 0.5 * day  # Increasing uncertainty
-        precip_variation = np.random.exponential(1) * 0.2 * day
-        
-        temp_min = max(-20, base_temp - 5 + temp_variation)
-        temp_max = min(50, base_temp + 5 + temp_variation)
-        
-        forecast = {
-            "date": date.isoformat(),
-            "latitude": target_lat,
-            "longitude": target_lon,
-            "metrics": {
-                "temperature_min": float(temp_min),
-                "temperature_max": float(temp_max),
-                "temperature_mean": float((temp_min + temp_max) / 2),
-                "precipitation": float(max(0, base_precip + precip_variation)),
-                "humidity": float(max(0, min(100, base_humidity + np.random.normal(0, 3)))),
-                "wind_speed": float(max(0, base_wind_speed + np.random.normal(0, 1))),
-                "wind_direction": float((base_wind_direction + np.random.normal(0, 10)) % 360),
-                "cloud_cover": float(max(0, min(100, base_cloud_cover + np.random.normal(0, 5)))),
-                "soil_temperature": float(max(-20, base_temp - 3 + np.random.normal(0, 0.5))),
-                "soil_moisture": float(max(0, min(100, base_humidity - 10 + np.random.normal(0, 2)))),
-                "uv_index": float(max(0, min(12, 8 * (1 - base_cloud_cover/100) + np.random.normal(0, 0.5))))
-            },
-            "confidence": max(0, min(1, 0.9 - 0.05 * day))  # Decreasing confidence over time
-        }
-        forecasts.append(forecast)
+        # Get morning and afternoon data for this day
+        try:
+            morning = member_data.isel(time=day*2)
+            afternoon = member_data.isel(time=day*2+1) if day*2+1 < len(member_data.time) else morning
+            
+            # Get the forecast date (noon of the day)
+            forecast_date = now + timedelta(days=day+1)
+            
+            # Extract metrics
+            temp_morning = float(morning["2m_temperature"].values) - 273.15  # Convert K to C
+            temp_afternoon = float(afternoon["2m_temperature"].values) - 273.15
+            
+            temp_min = min(temp_morning, temp_afternoon)
+            temp_max = max(temp_morning, temp_afternoon)
+            temp_mean = (temp_min + temp_max) / 2
+            
+            # Wind components to speed and direction
+            u_wind = float(afternoon["10m_u_component_of_wind"].values)
+            v_wind = float(afternoon["10m_v_component_of_wind"].values)
+            
+            wind_speed = math.sqrt(u_wind**2 + v_wind**2) * 3.6  # Convert m/s to km/h
+            wind_direction = (math.degrees(math.atan2(v_wind, u_wind)) + 180) % 360  # 0 = from North
+            
+            # Check if we have MSL pressure
+            pressure = float(afternoon["mean_sea_level_pressure"].values) / 100 if "mean_sea_level_pressure" in afternoon else 1013.25  # Convert Pa to hPa
+            
+            # Precipitation - sum up the day's total
+            precip_morning = float(morning["total_precipitation"].values) * 1000 if "total_precipitation" in morning else 0  # Convert m to mm
+            precip_afternoon = float(afternoon["total_precipitation"].values) * 1000 if "total_precipitation" in afternoon else 0
+            precipitation = precip_morning + precip_afternoon
+            
+            # Calculate confidence based on lead time
+            # In a real implementation, this would use ensemble spread
+            confidence = max(0.2, min(0.95, 0.95 - 0.05 * day))
+            
+            # Create forecast dictionary
+            forecast = {
+                "date": forecast_date.isoformat(),
+                "latitude": target_lat,
+                "longitude": target_lon,
+                "metrics": {
+                    "temperature_min": float(temp_min),
+                    "temperature_max": float(temp_max),
+                    "temperature_mean": float(temp_mean),
+                    "precipitation": float(precipitation),
+                    "humidity": 70.0,  # Placeholder - GenCast doesn't directly predict this
+                    "wind_speed": float(wind_speed),
+                    "wind_direction": float(wind_direction),
+                    "cloud_cover": 50.0,  # Placeholder - GenCast doesn't directly predict this
+                    "soil_temperature": float(temp_mean - 2.0),  # Approximation
+                    "soil_moisture": 50.0,  # Placeholder - GenCast doesn't directly predict this
+                    "uv_index": None  # GenCast doesn't predict this
+                },
+                "confidence": confidence
+            }
+            forecasts.append(forecast)
+        except Exception as e:
+            print(f"Error processing day {day} for member {member_idx}: {e}")
+            continue
     
     return forecasts
 
-# Generate ensemble of forecasts
+# Process each ensemble member
 ensemble = []
 for i in range(ensemble_samples):
-    ensemble.append(generate_simulated_forecast())
+    try:
+        member_forecasts = process_ensemble_member(i)
+        ensemble.append(member_forecasts)
+        print(f"Processed ensemble member {i+1}/{ensemble_samples}")
+    except Exception as e:
+        print(f"Error processing ensemble member {i}: {e}")
+        continue
+
+# Calculate ensemble statistics for confidence
+if len(ensemble) > 1:
+    print("Calculating ensemble statistics...")
+    for day in range(min(len(member_forecasts) for member_forecasts in ensemble)):
+        # Extract metrics for this day across all members
+        temp_values = [members[day]["metrics"]["temperature_mean"] for members in ensemble]
+        precip_values = [members[day]["metrics"]["precipitation"] for members in ensemble]
+        wind_values = [members[day]["metrics"]["wind_speed"] for members in ensemble]
+        
+        # Calculate standard deviation
+        temp_std = statistics.stdev(temp_values) if len(temp_values) > 1 else 0
+        precip_std = statistics.stdev(precip_values) if len(precip_values) > 1 else 0
+        wind_std = statistics.stdev(wind_values) if len(wind_values) > 1 else 0
+        
+        # Update confidence based on ensemble spread
+        temp_confidence = max(0.1, min(0.9, 1 - (temp_std / 10)))  # Normalize, assuming 10°C spread is low confidence
+        precip_confidence = max(0.1, min(0.9, 1 - (precip_std / 20)))  # Normalize, 20mm spread is low confidence
+        wind_confidence = max(0.1, min(0.9, 1 - (wind_std / 15)))  # Normalize, 15km/h spread is low confidence
+        
+        # Overall confidence is weighted average
+        overall = (temp_confidence * 0.4) + (precip_confidence * 0.4) + (wind_confidence * 0.2)
+        
+        # Update confidence in the first ensemble member (which will be used as primary)
+        if ensemble and ensemble[0] and day < len(ensemble[0]):
+            ensemble[0][day]["confidence"] = overall
+            # Also store confidence metrics for reference
+            ensemble[0][day]["confidence_metrics"] = {
+                "temperature": temp_confidence,
+                "precipitation": precip_confidence,
+                "wind": wind_confidence,
+                "overall": overall,
+                "temp_std": temp_std,
+                "precip_std": precip_std,
+                "wind_std": wind_std
+            }
 
 # Save forecasts as JSON
+print("Saving forecast results...")
 with open('gencast_forecast.json', 'w') as f:
     json.dump({
         "metadata": {
@@ -345,7 +621,7 @@ with open('gencast_forecast.json', 'w') as f:
             "longitude": target_lon,
             "generated_at": datetime.now().isoformat(),
             "model": "GenCast 0.25deg Operational",
-            "ensemble_size": ensemble_samples
+            "ensemble_size": len(ensemble)
         },
         "ensemble": ensemble
     }, f, indent=2)
@@ -562,16 +838,16 @@ gcloud compute tpus queued-resources delete $TPU_NAME \\
             with open(result_path, 'r') as f:
                 data = json.load(f)
                 
-            # For now, we'll use the first ensemble member
-            # In a future iteration, we could use the ensemble for confidence metrics
             ensemble = data.get("ensemble", [])
+            metadata = data.get("metadata", {})
             
             if not ensemble:
                 logger.error("No forecast data found in results")
                 return []
                 
-            # Use the first ensemble member by default
+            # Use the first ensemble member by default, which has confidence metrics from all members
             forecast_data = ensemble[0]
+            ensemble_size = metadata.get("ensemble_size", len(ensemble))
             
             # Convert to Forecast objects
             forecasts = []
@@ -594,28 +870,40 @@ gcloud compute tpus queued-resources delete $TPU_NAME \\
                     uv_index=day_forecast["metrics"].get("uv_index")
                 )
                 
+                # Get confidence metrics
+                confidence = day_forecast.get("confidence", 0.5)
+                confidence_metrics = day_forecast.get("confidence_metrics", {})
+                
+                # Create raw data with enhanced confidence metrics
+                raw_data = {
+                    "source": self.name,
+                    "date": forecast_date.isoformat(),
+                    "location": {
+                        "name": location.name,
+                        "lat": location.latitude,
+                        "lon": location.longitude
+                    },
+                    "metrics": day_forecast["metrics"],
+                    "confidence": confidence,
+                    "ensemble_size": ensemble_size
+                }
+                
+                # Add confidence metrics if available (from ensemble)
+                if confidence_metrics:
+                    raw_data["confidence_metrics"] = confidence_metrics
+                
                 # Create Forecast object
                 forecast = Forecast(
                     source=self.name,
                     location_id=location_id,
                     date=forecast_date,
                     metrics=metrics,
-                    raw_data={
-                        "source": self.name,
-                        "date": forecast_date.isoformat(),
-                        "location": {
-                            "name": location.name,
-                            "lat": location.latitude,
-                            "lon": location.longitude
-                        },
-                        "metrics": day_forecast["metrics"],
-                        "confidence": day_forecast.get("confidence", 0.5),
-                        "ensemble_size": len(ensemble)
-                    }
+                    raw_data=raw_data
                 )
                 
                 forecasts.append(forecast)
             
+            logger.info(f"Successfully processed {len(forecasts)} days of forecast from GenCast with {ensemble_size} ensemble members")
             return forecasts
             
         except Exception as e:
