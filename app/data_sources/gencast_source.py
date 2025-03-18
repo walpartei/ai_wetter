@@ -244,7 +244,7 @@ ds.to_netcdf("input_data.nc")
 '
 
   # Create run_gencast.py script
-  cat > run_gencast.py << 'EOL'
+  cat > run_gencast.py << EOL
 import jax
 import numpy as np
 import xarray as xr
