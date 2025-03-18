@@ -309,10 +309,20 @@ class MainWindow:
             # Get forecast history
             history = self.history_service.get_forecast_history(location)
             
-            # Find the requested history entry
-            history_entry = next((h for h in history if h["date"].startswith(date_str)), None)
+            # The date_str from frontend is in format YYYY-MM-DD HH:MM
+            # Convert it to be more flexible with matching
+            date_parts = date_str.split(' ')[0] if ' ' in date_str else date_str
+            
+            # Find the requested history entry with more flexible matching
+            history_entry = None
+            for entry in history:
+                entry_date = entry.get("date", "")
+                if entry_date and date_parts in entry_date:
+                    history_entry = entry
+                    break
             
             if not history_entry:
+                logger.error(f"History entry not found for date: {date_str}, location: {location_id}")
                 return jsonify({'error': 'History entry not found'}), 404
                 
             # Render history details

@@ -59,49 +59,117 @@ class HistoryView:
                 <h6>Location: {location.name}, {location.region}</h6>
             '''
             
-            # For each source
-            for source, source_forecasts in forecasts.items():
-                html += f'<h5 class="mt-4">{source}</h5>'
-                
-                # Create a table for this source
-                html += '''
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Date</th>
-                                <th>Temp Min (°C)</th>
-                                <th>Temp Max (°C)</th>
-                                <th>Precip (mm)</th>
-                                <th>Wind (km/h)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                '''
-                
-                for forecast in source_forecasts[:7]:  # Limit to 7 days for readability
-                    try:
-                        forecast_date = datetime.fromisoformat(forecast["date"]).strftime("%a, %b %d")
-                        metrics = forecast["metrics"]
-                        
-                        html += f'''
-                        <tr>
-                            <td>{forecast_date}</td>
-                            <td>{metrics["temperature_min"]:.1f}</td>
-                            <td>{metrics["temperature_max"]:.1f}</td>
-                            <td>{metrics["precipitation"]:.1f}</td>
-                            <td>{metrics["wind_speed"]:.1f}</td>
-                        </tr>
-                        '''
-                    except (KeyError, ValueError):
-                        # Skip invalid entries
+            # Check if forecasts is a dict or a list (for compatibility with different formats)
+            if isinstance(forecasts, dict):
+                # Dictionary format: source -> forecasts
+                if not forecasts:
+                    html += '<div class="alert alert-info">No forecast data available.</div>'
+                    
+                # For each source
+                for source, source_forecasts in forecasts.items():
+                    html += f'<h5 class="mt-4">{source}</h5>'
+                    
+                    if not source_forecasts:
+                        html += '<div class="alert alert-info">No forecasts available for this source.</div>'
                         continue
-                        
-                html += '''
-                        </tbody>
-                    </table>
-                </div>
-                '''
+                    
+                    # Create a table for this source
+                    html += '''
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Temp Min (°C)</th>
+                                    <th>Temp Max (°C)</th>
+                                    <th>Precip (mm)</th>
+                                    <th>Wind (km/h)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    '''
+                    
+                    for forecast in source_forecasts[:7]:  # Limit to 7 days for readability
+                        try:
+                            forecast_date = datetime.fromisoformat(forecast["date"]).strftime("%a, %b %d")
+                            metrics = forecast["metrics"]
+                            
+                            html += f'''
+                            <tr>
+                                <td>{forecast_date}</td>
+                                <td>{metrics["temperature_min"]:.1f}</td>
+                                <td>{metrics["temperature_max"]:.1f}</td>
+                                <td>{metrics["precipitation"]:.1f}</td>
+                                <td>{metrics["wind_speed"]:.1f}</td>
+                            </tr>
+                            '''
+                        except (KeyError, ValueError) as e:
+                            # Skip invalid entries but log the error
+                            html += f'''
+                            <tr>
+                                <td colspan="5" class="text-danger">Error: {str(e)}</td>
+                            </tr>
+                            '''
+                            continue
+                            
+                    html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                    '''
+            elif isinstance(forecasts, list):
+                # List format: list of forecasts
+                html += '<h5 class="mt-4">Combined Forecast</h5>'
+                
+                if not forecasts:
+                    html += '<div class="alert alert-info">No forecast data available.</div>'
+                else:
+                    # Create a table for this source
+                    html += '''
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Temp Min (°C)</th>
+                                    <th>Temp Max (°C)</th>
+                                    <th>Precip (mm)</th>
+                                    <th>Wind (km/h)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    '''
+                    
+                    for forecast in forecasts[:7]:  # Limit to 7 days for readability
+                        try:
+                            forecast_date = datetime.fromisoformat(forecast["date"]).strftime("%a, %b %d")
+                            metrics = forecast["metrics"]
+                            
+                            html += f'''
+                            <tr>
+                                <td>{forecast_date}</td>
+                                <td>{metrics["temperature_min"]:.1f}</td>
+                                <td>{metrics["temperature_max"]:.1f}</td>
+                                <td>{metrics["precipitation"]:.1f}</td>
+                                <td>{metrics["wind_speed"]:.1f}</td>
+                            </tr>
+                            '''
+                        except (KeyError, ValueError) as e:
+                            # Skip invalid entries but log the error
+                            html += f'''
+                            <tr>
+                                <td colspan="5" class="text-danger">Error: {str(e)}</td>
+                            </tr>
+                            '''
+                            continue
+                            
+                    html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                    '''
+            else:
+                html += f'<div class="alert alert-warning">Unexpected forecast data format: {type(forecasts).__name__}</div>'
             
             html += '''
             </div>
@@ -113,4 +181,19 @@ class HistoryView:
             return html
             
         except (KeyError, ValueError) as e:
-            return f'<div class="alert alert-danger">Error parsing historical forecast: {str(e)}</div>'
+            return f'''
+            <div class="modal-header">
+                <h5 class="modal-title">Error Loading Forecast Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h5>Error parsing historical forecast:</h5>
+                    <p>{str(e)}</p>
+                    <pre class="text-muted">{json.dumps(history_entry, indent=2)[:500]}</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+            '''
