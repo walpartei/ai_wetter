@@ -88,27 +88,37 @@ document.addEventListener('DOMContentLoaded', function() {
                                     const logEntry = document.createElement('div');
                                     logEntry.className = 'log-entry';
                                     
-                                    // Color based on log level
-                                    if (log.message.includes('ERROR') || log.message.includes('error')) {
+                                    // For agent logs, apply special styling based on content
+                                    let message = log.message;
+                                    
+                                    // Make all agent logs stand out
+                                    logEntry.className += ' agent-log';
+                                    
+                                    // Style based on log content
+                                    if (message.includes('❌') || message.includes('ERROR') || message.includes('error')) {
                                         logEntry.className += ' text-danger';
-                                    } else if (log.message.includes('WARNING') || log.message.includes('warning')) {
+                                    } else if (message.includes('⚠') || message.includes('WARNING') || message.includes('warning')) {
                                         logEntry.className += ' text-warning';
-                                    } else if (log.message.includes('SUCCESS') || log.message.includes('success')) {
+                                    } else if (message.includes('✅') || message.includes('SUCCESS') || message.includes('success')) {
                                         logEntry.className += ' text-success';
+                                    } else if (message.includes('📍 Step')) {
+                                        logEntry.className += ' text-primary';
                                     } else {
-                                        logEntry.className += ' text-muted';
+                                        logEntry.className += ' text-info';
                                     }
                                     
-                                    // Process agent logs to highlight steps
-                                    let message = log.message;
-                                    if (message.includes('[agent]')) {
-                                        message = message.replace(/\[agent\]/g, '<strong class="text-primary">[agent]</strong>');
-                                        
-                                        // Highlight steps
-                                        message = message.replace(/(📍 Step \d+)/g, '<span class="text-success">$1</span>');
-                                        // Highlight success
-                                        message = message.replace(/(✅ Task completed|✅ Successfully)/g, '<span class="text-success fw-bold">$1</span>');
-                                    }
+                                    // Process agent logs to highlight steps and icons
+                                    message = message.replace(/\[agent\]/g, '<strong>[agent]</strong>');
+                                    
+                                    // Highlight steps and important icons
+                                    message = message.replace(/(📍 Step \d+)/g, '<span class="fw-bold text-primary">$1</span>');
+                                    message = message.replace(/(✅)/g, '<span class="text-success fw-bold">$1</span>');
+                                    message = message.replace(/(❌)/g, '<span class="text-danger fw-bold">$1</span>');
+                                    message = message.replace(/(⚠)/g, '<span class="text-warning fw-bold">$1</span>');
+                                    message = message.replace(/(🧠|🎯|🛠️|📄)/g, '<span class="fw-bold">$1</span>');
+                                    
+                                    // Other specific highlight phrases
+                                    message = message.replace(/(Task completed|Successfully)/g, '<span class="text-success fw-bold">$1</span>');
                                     
                                     // Format the log entry
                                     logEntry.innerHTML = `<span class="time">${formatTime(log.timestamp)}</span> ${message}`;
@@ -255,9 +265,26 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             {% if source == 'Meteologix' %}
                             <div class="mt-2" id="meteologix-logs">
-                                <div class="log-container" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
+                                <div class="log-container" style="max-height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 10px; background-color: #f8f9fa; border-radius: 4px; border: 1px solid #dee2e6;">
                                     <!-- Log entries will be dynamically populated via API -->
                                 </div>
+                                <style>
+                                    .log-entry {
+                                        margin-bottom: 2px;
+                                        line-height: 1.4;
+                                        white-space: pre-wrap;
+                                        word-break: break-word;
+                                    }
+                                    .log-entry .time {
+                                        display: inline-block;
+                                        min-width: 55px;
+                                        color: #6c757d;
+                                        margin-right: 5px;
+                                    }
+                                    .agent-log {
+                                        font-weight: 500;
+                                    }
+                                </style>
                             </div>
                             {% endif %}
                         </div>

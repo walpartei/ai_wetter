@@ -261,8 +261,25 @@ Structure the data in exactly the following format:
 
             # Run the agent and get the result
             logger.info("Running browser-use agent to extract Meteologix forecast data")
+            
+            # Set log format to capture agent logs properly
+            import logging
+            original_formatter = None
+            for handler in logging.getLogger().handlers:
+                if isinstance(handler, logging.StreamHandler):
+                    original_formatter = handler.formatter
+                    # Use a simpler format that will clearly show agent messages
+                    handler.setFormatter(logging.Formatter('%(message)s'))
+            
+            # Run the browser agent
             history = await agent.run()
-
+            
+            # Restore original formatter if we changed it
+            if original_formatter:
+                for handler in logging.getLogger().handlers:
+                    if isinstance(handler, logging.StreamHandler):
+                        handler.setFormatter(original_formatter)
+            
             # Log information about the result
             logger.info("Browser automation completed successfully")
 
