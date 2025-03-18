@@ -207,6 +207,8 @@ def create_synthetic_input(lat, lon, days=14):
             "datetime": ("time", datetime_values),
             "latitude": ("latitude", lats),
             "longitude": ("longitude", lons),
+            "lat": ("latitude", lats),
+            "lon": ("longitude", lons),
         }
     )
     
