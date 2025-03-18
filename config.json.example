@@ -21,7 +21,7 @@
             "zone": "us-central2-b", /* Best region for TPU v5e availability */
             "accelerator_type": "v5e-8", /* More readily available than v5p */
             "runtime_version": "tpu-vm-base", /* Standard TPU runtime */
-            "model_path": "gs://dm_graphcast/gencast/params/GenCast 0p25deg Operational <2019.npz",
+            "model_path": "gs://dm_graphcast/gencast/params/GenCast 0p25deg Operational <2022.npz",
             "stats_path": "gs://dm_graphcast/gencast/stats/",
             "ensemble_samples": 3,
             "use_tpu": false, /* Set to true to use real TPU inference */
