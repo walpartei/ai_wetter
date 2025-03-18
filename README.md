@@ -119,14 +119,23 @@ nano .env
 
 8. Set up Nginx as a reverse proxy:
 ```bash
+# Copy the example config from the repo
+sudo cp ~/ai_wetter/nginx/ai_wetter.conf.example /etc/nginx/sites-available/ai_wetter
+
+# Or create a new one
 sudo nano /etc/nginx/sites-available/ai_wetter
 ```
 
-Add the following configuration:
+Use the following configuration (already included in the example):
 ```
 server {
     listen 80;
     server_name your_domain.com;  # Or your server IP
+
+    # Set longer timeouts for the browser automation
+    proxy_connect_timeout 300s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -134,6 +143,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Set longer timeouts specifically for this application
+        proxy_read_timeout 300s;
     }
 }
 ```
@@ -153,7 +165,7 @@ byobu
 # Inside byobu, start gunicorn
 cd ~/ai_wetter
 source venv/bin/activate
-gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2 --timeout=120
+gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2 --timeout=300
 ```
 
 You can detach from the Byobu session by pressing `F6` or `Ctrl+A+D`. To reattach later:
@@ -166,7 +178,7 @@ You can also create a simple start script for easier management:
 echo '#!/bin/bash
 cd ~/ai_wetter
 source venv/bin/activate
-gunicorn "app.app:create_app()" --bind=127.0.0.1:8000 --workers=2 --timeout=120
+gunicorn "app.app:create_app()" --bind=127.0.0.1:8000 --workers=2 --timeout=300
 ' > ~/ai_wetter/start.sh
 
 chmod +x ~/ai_wetter/start.sh

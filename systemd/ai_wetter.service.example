@@ -7,7 +7,7 @@ User=your_username
 Group=your_username
 WorkingDirectory=/home/your_username/ai_wetter
 Environment="PATH=/home/your_username/ai_wetter/venv/bin"
-ExecStart=/home/your_username/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2
+ExecStart=/home/your_username/ai_wetter/venv/bin/gunicorn 'app.app:create_app()' --bind=127.0.0.1:8000 --workers=2 --timeout=300
 Restart=always
 
 [Install]
