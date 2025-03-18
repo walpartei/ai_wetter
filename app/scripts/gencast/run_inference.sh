@@ -127,6 +127,7 @@ from datetime import datetime, timedelta
 import math
 from typing import Optional
 from pathlib import Path
+import pandas as pd
 
 # Try to import with different names to handle package name variations
 try:
@@ -197,13 +198,15 @@ def create_synthetic_input(lat, lon, days=14):
     # Create time coordinates (3 time steps: 2 for input, 1+ for predictions)
     start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     times = [start_date + timedelta(hours=12*i) for i in range(days+2)]
-    time_coords = np.array([t.timestamp() * 1_000_000 for t in times], dtype=np.int64)
     datetime_values = np.array(times)
+    
+    # Create timedelta array (12 hours per step)
+    time_deltas = pd.to_timedelta(np.arange(days+2) * 12, unit="h")
     
     # Create a dataset with essential variables
     ds = xarray.Dataset(
         coords={
-            "time": ("time", time_coords),
+            "time": ("time", time_deltas),
             "datetime": ("time", datetime_values),
             "latitude": ("latitude", lats),
             "longitude": ("longitude", lons),
