@@ -20,7 +20,11 @@
             "runtime_version": "v2-alpha-tpuv5",
             "model_path": "gs://dm_graphcast/gencast/params/GenCast 0p25deg Operational <2019.npz",
             "stats_path": "gs://dm_graphcast/gencast/stats/",
-            "ensemble_samples": 3
+            "ensemble_samples": 3,
+            "use_tpu": false,
+            "use_spot": true,
+            "cache_forecasts": true,
+            "cache_duration_hours": 6
         }
     },
     "app": {
