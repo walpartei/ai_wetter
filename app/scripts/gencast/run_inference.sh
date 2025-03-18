@@ -62,9 +62,26 @@ print(f"Output ID: {args.output}\n")
 # Install required packages
 sys.stdout.write("Installing required packages...\n")
 sys.stdout.flush()
-subprocess.run(["pip", "install", "-U", "jax[tpu]", "-f", "https://storage.googleapis.com/jax-releases/libtpu_releases.html"], check=True)
-subprocess.run(["pip", "install", "-U", "xarray", "zarr", "numpy", "matplotlib", "dm-haiku", "optax"], check=True)
-subprocess.run(["pip", "install", "-U", "https://github.com/deepmind/graphcast/archive/master.zip"], check=True)
+# Install in a specific order to ensure dependencies are met
+subprocess.run(["pip", "install", "--user", "-U", "jax[tpu]", "-f", "https://storage.googleapis.com/jax-releases/libtpu_releases.html"], check=True)
+subprocess.run(["pip", "install", "--user", "-U", "xarray", "zarr", "numpy", "matplotlib"], check=True)
+subprocess.run(["pip", "install", "--user", "-U", "dm-haiku"], check=True)
+subprocess.run(["pip", "install", "--user", "-U", "optax"], check=True)
+subprocess.run(["pip", "install", "--user", "-U", "https://github.com/deepmind/graphcast/archive/master.zip"], check=True)
+
+# Add the local Python path to ensure packages are found
+import sys
+import site
+import os
+
+# Make sure we can find the user site packages
+user_site = site.USER_SITE
+sys.path.insert(0, user_site)
+print(f"Added user site packages directory to path: {user_site}")
+
+# Also add to PYTHONPATH for subprocess calls
+os.environ["PYTHONPATH"] = f"{user_site}:{os.environ.get('PYTHONPATH', '')}"
+print(f"Updated PYTHONPATH with user site packages")
 
 # Import required libraries
 import dataclasses
