@@ -257,6 +257,7 @@ import math
 import haiku as hk
 from datetime import datetime, timedelta
 import statistics
+import sys
 
 print(f'Number of devices: {jax.device_count()}')
 print(f'JAX devices: {jax.devices()}')
@@ -389,7 +390,6 @@ print(f"Target location grid point: {target_lat}, {target_lon}")
 print("Setting up GenCast model...")
 
 def construct_wrapped_gencast():
-    """Constructs and wraps the GenCast Predictor."""
     predictor = gencast.GenCast(
         sampler_config=sampler_config,
         task_config=task_config,
@@ -496,7 +496,6 @@ target_data = predictions.sel(lat=target_lat, lon=target_lon, method="nearest")
 
 # Function to convert the forecasts to our format
 def process_ensemble_member(member_idx):
-    """Process a single ensemble member into forecast dictionaries."""
     # Extract this member's data
     member_data = target_data.isel(sample=member_idx)
     
