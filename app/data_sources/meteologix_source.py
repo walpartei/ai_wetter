@@ -128,13 +128,25 @@ class MeteologixDataSource(BaseDataSource):
     
     def is_available(self) -> bool:
         """Check if Meteologix data source is properly configured and available."""
-        # Check if the source is enabled in config and OpenAI API key is set
-        has_config = self.enabled and bool(self.openai_api_key)
+        # First check if enabled in config
+        if not self.config.get("enabled", False):
+            logger.warning("Meteologix is disabled in configuration")
+            return False
+            
+        # Check if browser automation is enabled
+        if not self.config.get("browser_automation", False):
+            logger.warning("Meteologix browser automation is disabled in configuration")
+            return False
+            
+        # Check if the OpenAI API key is set
+        if not self.openai_api_key:
+            logger.warning("OpenAI API key not set for Meteologix browser automation")
+            return False
         
         # Try to check if Playwright is properly installed
         try:
             import playwright
-            return has_config
+            return True
         except Exception as e:
             logger.warning(f"Playwright not properly installed: {e}")
             return False

@@ -25,6 +25,11 @@ class ECMWFDataSource(BaseDataSource):
     
     def is_available(self) -> bool:
         """Check if ECMWF API is properly configured and available."""
+        # First check if enabled in config
+        if not self.config.get("enabled", False):
+            logger.warning("ECMWF API is disabled in configuration")
+            return False
+            
         if not all([self.api_url, self.api_key, self.api_email]):
             logger.warning("ECMWF API not configured properly")
             return False

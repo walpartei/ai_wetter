@@ -47,8 +47,7 @@ gcloud compute tpus queued-resources create "$TPU_NAME" \
   --zone="$ZONE" \
   --accelerator-type="$ACCELERATOR_TYPE" \
   --runtime-version="$RUNTIME_VERSION" \
-  $SPOT_FLAG \
-  --wait
+  $SPOT_FLAG
 
 # Wait for TPU to be ready
 for i in {1..60}; do

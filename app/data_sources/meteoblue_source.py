@@ -23,6 +23,11 @@ class MeteoblueDataSource(BaseDataSource):
     
     def is_available(self) -> bool:
         """Check if Meteoblue API is properly configured and available."""
+        # First check if enabled in config
+        if not self.config.get("enabled", False):
+            logger.warning("Meteoblue API is disabled in configuration")
+            return False
+            
         if not self.api_key:
             logger.warning("Meteoblue API key not configured")
             return False
