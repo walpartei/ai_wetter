@@ -198,11 +198,13 @@ def create_synthetic_input(lat, lon, days=14):
     start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     times = [start_date + timedelta(hours=12*i) for i in range(days+2)]
     time_coords = np.array([t.timestamp() * 1_000_000 for t in times], dtype=np.int64)
+    datetime_values = np.array(times)
     
     # Create a dataset with essential variables
     ds = xarray.Dataset(
         coords={
             "time": ("time", time_coords),
+            "datetime": ("time", datetime_values),
             "latitude": ("latitude", lats),
             "longitude": ("longitude", lons),
         }
