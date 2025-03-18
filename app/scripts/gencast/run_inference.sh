@@ -83,32 +83,43 @@ print(f"Added user site packages directory to path: {user_site}")
 os.environ["PYTHONPATH"] = f"{user_site}:{os.environ.get('PYTHONPATH', '')}"
 print(f"Updated PYTHONPATH with user site packages")
 
-# Create a symbolic link to handle the dash vs underscore package name issue
+# Install dm-haiku specifically from GitHub
 import os
 import subprocess
 try:
-    # Get the path to the dm-haiku installation
+    # Get the path to the site packages
     site_packages_dir = site.USER_SITE
-    print(f"Looking for dm-haiku in {site_packages_dir}")
+    print(f"Site packages directory: {site_packages_dir}")
     
-    # Create a symbolic link from dm_haiku to dm-haiku
-    if os.path.exists(f"{site_packages_dir}/dm_haiku"):
-        print("dm_haiku directory already exists")
-    elif os.path.exists(f"{site_packages_dir}/dm-haiku"):
-        print(f"Creating symlink from dm-haiku to dm_haiku")
-        os.symlink(f"{site_packages_dir}/dm-haiku", f"{site_packages_dir}/dm_haiku")
-    else:
-        print("Neither dm-haiku nor dm_haiku found, listing site packages:")
+    # List the contents of site packages to debug
+    print("Listing site packages directory:")
+    if os.path.exists(site_packages_dir):
         subprocess.run(["ls", "-la", site_packages_dir], check=True)
-        raise ImportError("Cannot find dm-haiku package")
+    else:
+        print(f"Site packages directory {site_packages_dir} does not exist")
     
-    # Also try installing directly with underscore name
-    subprocess.run(["pip", "install", "--user", "git+https://github.com/deepmind/dm-haiku.git"], check=True)
+    # Install dm-haiku directly from GitHub
+    print("Installing dm-haiku directly from GitHub:")
+    subprocess.run(["pip", "install", "--user", "--no-deps", "git+https://github.com/deepmind/dm-haiku.git"], check=True)
+    
+    # Also try installing JAX and Graphcast normally
+    print("Installing dependencies directly:")
+    subprocess.run(["pip", "install", "--user", "--upgrade", "jax[tpu]", "haiku", "optax"], check=True)
+    
+    # Reinstall GraphCast
+    print("Installing GraphCast directly:")
+    subprocess.run(["pip", "install", "--user", "--upgrade", "git+https://github.com/deepmind/graphcast.git"], check=True)
     
     # List installed packages for debugging
+    print("Listing installed Python packages:")
     subprocess.run(["pip", "list"], check=True)
+    
+    # Add proper paths to PYTHONPATH
+    print("Modifying Python path:")
+    for path in sys.path:
+        print(f"  - {path}")
 except Exception as e:
-    print(f"Error setting up dm-haiku: {e}")
+    print(f"Error setting up Python packages: {e}")
 
 # Import required libraries
 import dataclasses
@@ -126,13 +137,9 @@ except ImportError:
         import haiku as hk
         print("Successfully imported haiku")
     except ImportError:
-        try:
-            import dm-haiku as hk
-            print("Successfully imported dm-haiku")
-        except ImportError:
-            import sys
-            print(f"Python path: {sys.path}")
-            print("Failed to import haiku module, continuing without it")
+        import sys
+        print(f"Python path: {sys.path}")
+        print("Failed to import haiku module, continuing without it")
 
 import jax
 import numpy as np
