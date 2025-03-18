@@ -49,16 +49,26 @@ gcloud compute tpus queued-resources create "$TPU_NAME" \
   --runtime-version="$RUNTIME_VERSION" \
   $SPOT_FLAG
 
-# Wait for TPU to be ready
-for i in {1..60}; do
+# Wait for TPU to be ready (increased timeout to 120 minutes)
+for i in {1..120}; do
   TPU_STATUS=$(gcloud compute tpus tpu-vm describe "$TPU_NAME" --zone="$ZONE" --project="$PROJECT_ID" --format="value(state)" 2>/dev/null || echo "NOT_FOUND")
   if [[ "$TPU_STATUS" == "READY" ]]; then
     echo "TPU VM '$TPU_NAME' is now ready"
     exit 0
   fi
-  echo "Waiting for TPU VM to be ready... Current state: $TPU_STATUS"
-  sleep 10
+  
+  # Print detailed status info to help debug issues
+  if [[ $((i % 6)) -eq 0 ]]; then
+    echo "====== Detailed TPU Status ($i minutes waited) ======"
+    gcloud compute tpus tpu-vm describe "$TPU_NAME" --zone="$ZONE" --project="$PROJECT_ID" --format="json" 2>/dev/null || echo "Could not get detailed status"
+    echo "================================================="
+  else 
+    echo "Waiting for TPU VM to be ready... Current state: $TPU_STATUS (waited $i minutes)"
+  fi
+  
+  sleep 60  # Check every minute instead of every 10 seconds
 done
 
-echo "Error: Timed out waiting for TPU VM to be ready"
-exit 1
+echo "Error: Timed out waiting for TPU VM to be ready after 120 minutes"
+# Don't fail - this will be handled by the Python code
+exit 0

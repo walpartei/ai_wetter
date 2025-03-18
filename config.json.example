@@ -18,9 +18,9 @@
             "enabled": true,
             "project_id": "ai-wetter",
             "bucket_name": "ai_wetter_bucket",
-            "zone": "us-east5-a", 
-            "accelerator_type": "v5p-16",
-            "runtime_version": "v2-alpha-tpuv5",
+            "zone": "us-central2-b", /* Best region for TPU v5e availability */
+            "accelerator_type": "v5e-8", /* More readily available than v5p */
+            "runtime_version": "tpu-vm-base", /* Standard TPU runtime */
             "model_path": "gs://dm_graphcast/gencast/params/GenCast 0p25deg Operational <2019.npz",
             "stats_path": "gs://dm_graphcast/gencast/stats/",
             "ensemble_samples": 3,
