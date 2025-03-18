@@ -24,14 +24,34 @@ logger = get_logger()
 class ForecastDay(BaseModel):
     """Single day forecast data from Meteologix."""
     date: str
+    max_temperature: str
+    min_temperature: str
+    precipitation_probability: str
+    precipitation_total: str
+    wind_peak_gust: str
+
+
+class MeteologixLocation(BaseModel):
+    """Forecast for a specific location from Meteologix."""
+    # Use a model with extra=True to allow for dynamic location fields
+    class Config:
+        extra = "allow"
+        
+    # We'll access the forecast data dynamically in the code
+
+
+# Alternative format as a fallback
+class ClassicForecastDay(BaseModel):
+    """Classic format single day forecast data."""
+    date: str
     temperature: Dict[str, str]
     precipitation: Dict[str, str]
     wind: str
 
 
-class MeteologixForecast(BaseModel):
-    """Complete forecast data from Meteologix."""
-    forecast: List[ForecastDay]
+class ClassicMeteologixForecast(BaseModel):
+    """Classic format complete forecast data."""
+    forecast: List[ClassicForecastDay]
 
 
 # Dictionary mapping our location IDs to Meteologix location IDs
@@ -77,6 +97,34 @@ class MeteologixDataSource(BaseDataSource):
         self.config = Config().get_api_config("meteologix")
         self.enabled = self.config.get("enabled", False)
         self.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+        
+    def _convert_date_format(self, date_str: str) -> str:
+        """Convert from MM/DD format to YYYY-MM-DD format.
+        
+        Args:
+            date_str: Date in MM/DD format (e.g., "03/18")
+            
+        Returns:
+            Date in YYYY-MM-DD format
+        """
+        try:
+            # Extract month and day
+            parts = date_str.split('/')
+            if len(parts) != 2:
+                raise ValueError(f"Invalid date format: {date_str}")
+            
+            month = int(parts[0])
+            day = int(parts[1])
+            
+            # Get current year
+            current_year = datetime.now().year
+            
+            # Create date string
+            return f"{current_year}-{month:02d}-{day:02d}"
+        except Exception as e:
+            logger.warning(f"Error converting date format {date_str}: {e}")
+            # Fallback: just return the original with current year
+            return f"{datetime.now().year}-{date_str.replace('/', '-')}"
     
     def is_available(self) -> bool:
         """Check if Meteologix data source is properly configured and available."""
@@ -168,17 +216,37 @@ class MeteologixDataSource(BaseDataSource):
         initial_actions = [{'open_tab': {'url': url}}]
 
         # Set up the controller with our Pydantic model for structured output
-        controller = Controller(output_model=MeteologixForecast)
+        controller = Controller(output_model=MeteologixLocation)
 
+        # Use location name in the request
+        location_name = "Devnya"  # Default to Devnya as fallback
+        location_parts = meteologix_location_id.split('-')
+        if len(location_parts) > 1:
+            # Try to get a better location name from the ID
+            location_name = location_parts[1].capitalize()
+        
         # Create the task for extracting weather data
-        task = """Go to the current page and extract the 14-day weather forecast data.
+        task = f"""Go to the current page and extract the 14-day weather forecast data for {location_name}.
 For each day, collect:
-1. The date (YYYY-MM-DD format)
-2. Min and max temperature in Celsius (e.g., "5°C" and "14°C")
+1. The date (in MM/DD format, e.g. "03/18")
+2. Min and max temperature in Celsius (e.g., "-2°C" and "7°C")
 3. Precipitation probability percentage and total amount in mm (e.g., "20%" and "5mm")
-4. Wind speed in kph (e.g., "15 kph")
+4. Wind peak gust in kph (e.g., "46 kph")
 
-Structure the data exactly as shown in the output format."""
+Structure the data in exactly the following format:
+{{
+  "{location_name}_14_day_weather_forecast": [
+    {{
+      "date": "03/18",
+      "max_temperature": "7°C",
+      "min_temperature": "-2°C",
+      "precipitation_probability": "0%",
+      "precipitation_total": "0mm",
+      "wind_peak_gust": "46 kph"
+    }},
+    // more days...
+  ]
+}}"""
 
         # Create the browser-use agent with structured output
         try:
@@ -196,25 +264,132 @@ Structure the data exactly as shown in the output format."""
             history = await agent.run()
 
             # Log information about the result
-            logger.info(f"Browser automation completed successfully")
+            logger.info("Browser automation completed successfully")
 
             # Extract the structured result using the Pydantic model
-            logger.info(f"Extracting structured weather data from browser automation result")
+            logger.info("Extracting structured weather data from browser automation result")
             result = history.final_result()
             if result:
-                logger.info(f"Got structured result from browser agent")
+                logger.info("Got structured result from browser agent")
                 try:
-                    # Parse the result as our Pydantic model
+                    # Try to parse with the new format first
                     logger.info(f"Parsing structured output with Pydantic model")
-                    parsed_forecast = MeteologixForecast.model_validate_json(result)
-                    forecast_days = len(parsed_forecast.forecast)
+                    parsed_forecast = MeteologixLocation.model_validate_json(result)
+                    
+                    # Find the forecast field (it should be the only field ending with _14_day_weather_forecast)
+                    forecast_field = None
+                    forecast_data = []
+                    
+                    # Convert to dict to work with dynamic field name
+                    forecast_dict = parsed_forecast.model_dump()
+                    
+                    # Look for the forecast field with dynamic name
+                    for field_name, field_value in forecast_dict.items():
+                        if field_name.endswith('_14_day_weather_forecast'):
+                            forecast_field = field_name
+                            forecast_data = field_value
+                            break
+                            
+                    if not forecast_field or not forecast_data:
+                        raise ValueError("Could not find forecast data in the parsed result")
+                        
+                    forecast_days = len(forecast_data)
                     logger.info(f"Successfully parsed structured data with {forecast_days} days of forecast")
 
-                    # Convert to dictionary for compatibility with existing code
-                    logger.info(f"Finalizing Meteologix forecast data")
-                    return parsed_forecast.model_dump()
+                    # Convert to the format expected by our application
+                    logger.info("Converting forecast data to internal format")
+                    # Create a dictionary with the expected structure
+                    converted_forecast = {
+                        "forecast": []
+                    }
+                    
+                    # Convert each day's data to the format our application expects
+                    for day in forecast_data:
+                        # Check if we're working with a dict or object
+                        if isinstance(day, dict):
+                            # Dictionary access
+                            converted_day = {
+                                "date": self._convert_date_format(day.get("date", "")),
+                                "temperature": {
+                                    "min": day.get("min_temperature", "N/A"),
+                                    "max": day.get("max_temperature", "N/A")
+                                },
+                                "precipitation": {
+                                    "probability": day.get("precipitation_probability", "0%"),
+                                    "total": day.get("precipitation_total", "0mm")
+                                },
+                                "wind": day.get("wind_peak_gust", "0 kph")
+                            }
+                        else:
+                            # Object attribute access
+                            converted_day = {
+                                "date": self._convert_date_format(getattr(day, "date", "")),
+                                "temperature": {
+                                    "min": getattr(day, "min_temperature", "N/A"),
+                                    "max": getattr(day, "max_temperature", "N/A")
+                                },
+                                "precipitation": {
+                                    "probability": getattr(day, "precipitation_probability", "0%"),
+                                    "total": getattr(day, "precipitation_total", "0mm")
+                                },
+                                "wind": getattr(day, "wind_peak_gust", "0 kph")
+                            }
+                        converted_forecast["forecast"].append(converted_day)
+                    
+                    logger.info("Finalizing Meteologix forecast data")
+                    return converted_forecast
                 except Exception as e:
-                    logger.error(f"Error parsing structured output: {e}")
+                    logger.warning(f"Error parsing with primary format: {e}")
+                    
+                    # Try fallback format
+                    try:
+                        logger.info("Trying fallback format parse")
+                        # Try to parse with the classic format
+                        parsed_forecast = ClassicMeteologixForecast.model_validate_json(result)
+                        forecast_days = len(parsed_forecast.forecast)
+                        logger.info(f"Successfully parsed with fallback format: {forecast_days} days")
+                        
+                        # Return the data in the expected format (already correct)
+                        return parsed_forecast.model_dump()
+                    except Exception as fallback_error:
+                        logger.error(f"Error parsing structured output (all formats failed): {fallback_error}")
+                        
+                        # Last resort: try to convert from raw JSON if possible
+                        try:
+                            logger.info("Attempting to parse raw JSON")
+                            raw_data = json.loads(result)
+                            
+                            # Look for any field ending with _14_day_weather_forecast
+                            forecast_field = None
+                            for field in raw_data:
+                                if field.endswith('_14_day_weather_forecast'):
+                                    forecast_field = field
+                                    break
+                                    
+                            if forecast_field:
+                                logger.info(f"Found forecast data in field: {forecast_field}")
+                                converted_forecast = {"forecast": []}
+                                
+                                for day in raw_data[forecast_field]:
+                                    # Already using dictionary access in this case
+                                    converted_day = {
+                                        "date": self._convert_date_format(day.get("date", "")),
+                                        "temperature": {
+                                            "min": day.get("min_temperature", "N/A"),
+                                            "max": day.get("max_temperature", "N/A")
+                                        },
+                                        "precipitation": {
+                                            "probability": day.get("precipitation_probability", "0%"),
+                                            "total": day.get("precipitation_total", "0mm")
+                                        },
+                                        "wind": day.get("wind_peak_gust", "0 kph")
+                                    }
+                                    converted_forecast["forecast"].append(converted_day)
+                                
+                                logger.info("Successfully converted raw JSON format")
+                                return converted_forecast
+                        except Exception as json_error:
+                            logger.error(f"All parsing methods failed: {json_error}")
             else:
                 logger.error("No result returned from browser-use agent")
 
