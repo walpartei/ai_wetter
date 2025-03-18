@@ -1,5 +1,6 @@
 import json
 import uuid
+import time
 import tempfile
 import subprocess
 import random
@@ -87,6 +88,10 @@ class GenCastDataSource(BaseDataSource):
         except (subprocess.SubprocessError, FileNotFoundError):
             logger.warning("Google Cloud SDK (gcloud) not found but required for GenCast TPU usage")
             return False
+        
+        # Initialize a class-level lock for TPU operations
+        if not hasattr(GenCastDataSource, '_tpu_lock'):
+            GenCastDataSource._tpu_lock = False
             
         return True
 
@@ -119,12 +124,23 @@ class GenCastDataSource(BaseDataSource):
             
             # If TPU usage is enabled and properly configured, use it
             if self.use_tpu and self._check_cloud_credentials():
-                logger.info(f"Generating TPU-based GenCast forecast for {location.name}")
-                forecasts = self._generate_tpu_forecast(location, days)
-                
-                # Cache the results if successful
-                if forecasts and self.cache_forecasts:
-                    self._cache_forecast(location, forecasts)
+                # Check the TPU lock to prevent multiple simultaneous TPU operations
+                if GenCastDataSource._tpu_lock:
+                    logger.warning(f"Another TPU operation in progress, falling back to simulation for {location.name}")
+                    forecasts = self._generate_simulated_forecast(location, days)
+                else:
+                    try:
+                        # Acquire the lock
+                        GenCastDataSource._tpu_lock = True
+                        logger.info(f"Generating TPU-based GenCast forecast for {location.name}")
+                        forecasts = self._generate_tpu_forecast(location, days)
+                        
+                        # Cache the results if successful
+                        if forecasts and self.cache_forecasts:
+                            self._cache_forecast(location, forecasts)
+                    finally:
+                        # Always release the lock, even if an exception occurs
+                        GenCastDataSource._tpu_lock = False
             else:
                 # Fall back to simulation
                 logger.info(f"Generating simulated GenCast forecast for {location.name}")

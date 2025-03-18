@@ -17,6 +17,7 @@ build/
 .env
 .env.local
 instance/
+config.json
 
 # Flask
 instance/
