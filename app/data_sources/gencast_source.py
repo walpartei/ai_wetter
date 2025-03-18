@@ -267,8 +267,14 @@ class GenCastDataSource(BaseDataSource):
                     self.zone
                 ]
                 
-                # Run cleanup in the background to avoid waiting
-                subprocess.Popen(cleanup_cmd)
+                # Run cleanup in foreground to ensure it completes
+                try:
+                    subprocess.run(cleanup_cmd, check=True, text=True, timeout=300)
+                    logger.info(f"TPU VM {tpu_name} successfully deleted")
+                except Exception as cleanup_error:
+                    logger.error(f"Error during TPU cleanup: {cleanup_error}")
+                    # Make a second attempt with Popen as fallback
+                    subprocess.Popen(cleanup_cmd)
                 
                 # Step 5: Parse results
                 if output_path.exists():
@@ -318,9 +324,17 @@ class GenCastDataSource(BaseDataSource):
                     tpu_name,
                     self.zone
                 ]
-                subprocess.run(cleanup_cmd, check=True)
+                # Use timeout to ensure we don't wait too long
+                subprocess.run(cleanup_cmd, check=True, text=True, timeout=300)
+                logger.info(f"TPU VM {tpu_name} successfully deleted after error")
             except Exception as cleanup_error:
                 logger.error(f"Error cleaning up TPU: {cleanup_error}")
+                # Make a final background attempt
+                try:
+                    subprocess.Popen(cleanup_cmd)
+                    logger.info(f"Started background cleanup for TPU VM {tpu_name}")
+                except:
+                    pass
                 
             # Re-raise to let caller handle
             raise
