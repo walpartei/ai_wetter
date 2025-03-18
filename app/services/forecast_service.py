@@ -112,6 +112,78 @@ class ForecastService:
         
         return combined_forecasts
     
+    def convert_history_to_combined(self, forecast_data: Dict, location: Location) -> List[CombinedForecast]:
+        """Convert historical forecast data to combined forecasts.
+        
+        Args:
+            forecast_data: Dictionary of historical forecast data by source
+            location: The location for the forecasts
+            
+        Returns:
+            List of CombinedForecast objects created from historical data
+        """
+        combined_forecasts = []
+        
+        # Convert dictionary data back to Forecast objects
+        all_forecasts = {}
+        for source_name, source_forecasts in forecast_data.items():
+            forecasts = []
+            for f_data in source_forecasts:
+                try:
+                    forecast = Forecast.from_dict(f_data)
+                    forecasts.append(forecast)
+                except Exception as e:
+                    logger.error(f"Error converting historical forecast: {e}")
+                    continue
+            all_forecasts[source_name] = forecasts
+            
+        # Now process similar to get_combined_forecasts
+        if not all_forecasts:
+            logger.warning(f"No historical forecasts available for {location.name}")
+            return []
+            
+        # Try to determine the number of days based on the forecasts
+        max_days = 0
+        for source_forecasts in all_forecasts.values():
+            max_days = max(max_days, len(source_forecasts))
+            
+        # Get the start date from the first forecast of the first source
+        first_source = list(all_forecasts.keys())[0] if all_forecasts else None
+        if not first_source or not all_forecasts[first_source]:
+            logger.warning(f"No historical forecasts available from {first_source}")
+            return []
+            
+        start_date = all_forecasts[first_source][0].date
+        location_id = location.id or str(location.name).lower().replace(" ", "_")
+        
+        # Create a combined forecast for each day
+        for day in range(max_days):
+            forecast_date = start_date + timedelta(days=day)
+            day_forecasts = []
+            
+            # Collect forecasts for this day from all sources
+            for source_name, source_forecasts in all_forecasts.items():
+                if day < len(source_forecasts):
+                    day_forecasts.append(source_forecasts[day])
+            
+            if not day_forecasts:
+                logger.warning(f"No historical forecasts available for {location.name} on {forecast_date}")
+                continue
+                
+            # Create combined forecast
+            combined = CombinedForecast(
+                location_id=location_id,
+                date=forecast_date,
+                forecasts=day_forecasts
+            )
+            
+            # Calculate combined metrics and confidence levels
+            combined.calculate_combined_metrics()
+            
+            combined_forecasts.append(combined)
+        
+        return combined_forecasts
+    
     def _save_forecasts_to_history(self, location: Location, forecasts: Dict[str, List[Forecast]]) -> bool:
         """Save forecasts to history.
         

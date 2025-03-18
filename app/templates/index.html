@@ -129,10 +129,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 1000); // Poll every second
             }
             
+            // Check if any forecast is already in progress (indicated by URL)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('forecast_in_progress')) {
+                console.log('Forecast already in progress, not triggering new API calls');
+                // Just update UI to show we're waiting
+                document.getElementById('loadingMessage').textContent = 'Continuing previous forecast request...';
+                return;
+            }
+            
+            // Add a param to the URL to indicate a forecast is in progress
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('forecast_in_progress', 'true');
+            window.history.replaceState({}, '', newUrl.toString());
+            
             // Make API calls to check status for each source
             availableSources.forEach(source => {
                 // Use fetch to call our API status endpoint
-                fetch(`/api/forecast/status?location=${location}&source=${source}`)
+                fetch(`/api/forecast/status?location=${location}&source=${source}&_=${new Date().getTime()}`)
                     .then(response => response.json())
                     .then(data => {
                         updateSourceStatus(source, data.status);
@@ -170,8 +184,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Extend the timeout for Meteologix since it uses a browser scraper
             const timeoutDuration = hasMeteologix ? 70000 : 10000; // 70 seconds if Meteologix is enabled
             
-            setTimeout(function() {
-                window.location.href = `/forecast?location=${location}&days=${days}`;
+            const redirectTimer = setTimeout(function() {
+                // Clear the progress flag before redirecting
+                const redirectUrl = new URL(`/forecast`, window.location.origin);
+                redirectUrl.searchParams.set('location', location);
+                redirectUrl.searchParams.set('days', days);
+                window.location.href = redirectUrl.toString();
             }, timeoutDuration);
         });
     }
@@ -241,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h5 class="modal-title" id="loadingModalLabel">Fetching Weather Data</h5>
             </div>
             <div class="modal-body">
-                <p>Retrieving weather forecasts from multiple sources. This may take a few moments...</p>
+                <p id="loadingMessage">Retrieving weather forecasts from multiple sources. This may take a few moments...</p>
                 
                 <div class="api-status-container">
                     {% for source in available_sources %}

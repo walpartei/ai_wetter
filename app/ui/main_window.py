@@ -159,13 +159,36 @@ class MainWindow:
             location_id = request.args.get('location', '')
             days = int(request.args.get('days', 14))
             
+            # Check if this is a direct page load or redirect from form submission
+            # This prevents duplicate forecast requests
+            referrer = request.referrer or ""
+            is_direct_navigation = not (
+                referrer.endswith("/") or 
+                "forecast_in_progress=true" in referrer or
+                referrer.endswith("/index.html")
+            )
+            
             location = self.location_selector.get_location_by_id(location_id)
             if not location:
                 flash('Invalid location selected', 'error')
                 return redirect(url_for('index'))
             
-            # Get combined forecasts with status tracking (will be used in API version)
-            combined_forecasts = self.forecast_service.get_combined_forecasts(location, days)
+            # Only fetch new forecasts if coming from form submission
+            if not is_direct_navigation:
+                logger.info(f"Fetching new forecasts for {location.name} (days: {days})")
+                # Get combined forecasts with status tracking (will be used in API version)
+                combined_forecasts = self.forecast_service.get_combined_forecasts(location, days)
+            else:
+                logger.info(f"Direct navigation to forecast page - using cached forecasts for {location.name}")
+                # Use cached forecasts (from history if available) for direct navigation
+                history_service = HistoryService()
+                forecast_data = history_service.get_recent_forecasts(location_id)
+                if forecast_data:
+                    logger.info(f"Using cached forecasts from history for {location.name}")
+                    combined_forecasts = self.forecast_service.convert_history_to_combined(forecast_data, location)
+                else:
+                    logger.info(f"No cached forecasts available - fetching new for {location.name}")
+                    combined_forecasts = self.forecast_service.get_combined_forecasts(location, days)
             
             # Generate forecast table HTML
             forecast_table = ForecastView.render_forecast_table(combined_forecasts)
